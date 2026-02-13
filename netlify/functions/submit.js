@@ -30,7 +30,7 @@ export default async (req) => {
 
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
-  const TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || '캠지기 모집 폼'
+  const TABLE = process.env.AIRTABLE_TABLE_ID || process.env.AIRTABLE_TABLE_NAME || '캠지기 모집 폼'
 
   if (!API_KEY || !BASE_ID) {
     return new Response(
@@ -95,7 +95,7 @@ export default async (req) => {
       ],
     }
 
-    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}`
+    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`
     const airtableRes = await fetch(url, {
       method: 'POST',
       headers: {
