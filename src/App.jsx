@@ -9,6 +9,7 @@ import InfoStep from './components/steps/InfoStep'
 import AgreementStep from './components/steps/AgreementStep'
 import CompleteStep from './components/steps/CompleteStep'
 import { submitApplication } from './utils/airtable'
+import { BUDGET_TO_PLAN_TIER, PRICING } from './data/packages'
 
 /*
  * 퍼널 단계:
@@ -64,6 +65,7 @@ export default function App() {
   const [formData, setFormData] = useState(INITIAL_FORM)
   const [errors, setErrors] = useState({})
   const [agreements, setAgreements] = useState(INITIAL_AGREEMENTS)
+  const [customCrew, setCustomCrew] = useState({ icon: 0, partner: 0, rising: 0 })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ── Navigation ──
@@ -88,6 +90,7 @@ export default function App() {
     (value) => {
       setBudget(value)
       setSelectedPlan(null)
+      setCustomCrew({ icon: 0, partner: 0, rising: 0 })
       setTimeout(() => {
         if (value === 'custom') {
           goTo(3)
@@ -153,7 +156,14 @@ export default function App() {
     if (!allRequiredAgreed || isSubmitting) return
     setIsSubmitting(true)
     try {
-      await submitApplication({ budget, selectedPlan, formData })
+      // crew 구성 결정: 커스텀이면 customCrew, 아니면 plan.crew
+      const crew = selectedPlan?.id === 'custom'
+        ? customCrew
+        : selectedPlan?.crew || { icon: 0, partner: 0, rising: 0 }
+
+      const planTier = BUDGET_TO_PLAN_TIER[budget] || '직접 선택할게요'
+
+      await submitApplication({ budget, selectedPlan, formData, crew, planTier })
       goTo(5)
     } catch (err) {
       console.error('Submit error:', err)
@@ -161,28 +171,35 @@ export default function App() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, goTo])
+  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo])
 
   // ── Next 버튼 핸들러 ──
   const handleNext = useCallback(() => {
     if (step === 2 && selectedPlan) {
+      // 커스텀 플랜인데 인원이 0이면 진행 불가
+      if (selectedPlan.id === 'custom') {
+        const total = customCrew.icon + customCrew.partner + customCrew.rising
+        if (total === 0) return
+      }
       goTo(3)
     } else if (step === 3) {
       if (validateForm()) goTo(4)
     } else if (step === 4) {
       handleSubmit()
     }
-  }, [step, selectedPlan, goTo, validateForm, handleSubmit])
+  }, [step, selectedPlan, customCrew, goTo, validateForm, handleSubmit])
 
   // ── Button 상태 ──
   const getButtonConfig = () => {
     switch (step) {
-      case 2:
+      case 2: {
+        const isCustomEmpty = selectedPlan?.id === 'custom' && (customCrew.icon + customCrew.partner + customCrew.rising) === 0
         return {
-          text: selectedPlan ? '다음' : '플랜을 선택해주세요',
-          disabled: !selectedPlan,
+          text: !selectedPlan ? '플랜을 선택해주세요' : isCustomEmpty ? '인원을 1명 이상 선택해주세요' : '다음',
+          disabled: !selectedPlan || isCustomEmpty,
           icon: <ArrowRight size={18} />,
         }
+      }
       case 3:
         return {
           text: '다음',
@@ -271,6 +288,8 @@ export default function App() {
                 budget={budget}
                 selected={selectedPlan}
                 onSelect={handlePlanSelect}
+                customCrew={customCrew}
+                onCustomCrewChange={setCustomCrew}
               />
             )}
             {step === 3 && (

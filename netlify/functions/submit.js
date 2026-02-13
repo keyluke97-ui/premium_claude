@@ -5,7 +5,7 @@
  * Netlify 대시보드 > Site settings > Environment variables 에서 설정:
  *   - AIRTABLE_API_KEY
  *   - AIRTABLE_BASE_ID
- *   - AIRTABLE_TABLE_NAME (선택, 기본값: 협찬신청)
+ *   - AIRTABLE_TABLE_NAME (선택, 기본값: 캠지기 모집 폼)
  */
 
 export default async (req) => {
@@ -30,7 +30,7 @@ export default async (req) => {
 
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
-  const TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || '협찬신청'
+  const TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || '캠지기 모집 폼'
 
   if (!API_KEY || !BASE_ID) {
     return new Response(
@@ -47,21 +47,44 @@ export default async (req) => {
 
   try {
     const body = await req.json()
-    const { budget, selectedPlan, formData } = body
+    const { budget, formData, crew, planTier } = body
+
+    // 고정 단가
+    const ICON_PRICE = 300000
+    const PARTNER_PRICE = 100000
+    const RISING_PRICE = 50000
 
     const payload = {
       records: [
         {
           fields: {
-            캠핑장이름: formData.accommodationName || '',
-            대표자명: formData.representativeName || '',
-            연락처: formData.phone || '',
-            이메일: formData.email || '',
-            소재권역: formData.region || '',
-            선택예산: budget === 'custom' ? '맞춤상담' : `${budget}만원`,
-            선택플랜: selectedPlan?.name || '맞춤 상담 요청',
-            추가요청: formData.additionalRequests || '',
-            신청일시: new Date().toISOString(),
+            // 기본 정보 — Airtable 필드명 그대로
+            '숙소 이름을 적어주세요.': formData.accommodationName || '',
+            '대표자명': formData.representativeName || '',
+            '연락처': formData.phone || '',
+            '캠지기님 이메일': formData.email || '',
+            '숙소 위치': formData.region || '',
+
+            // 예산 & 플랜
+            '선택예산': budget === 'custom' ? '맞춤상담' : `${budget}만원`,
+            '선택플랜': planTier || '',
+
+            // 아이콘 크리에이터
+            '아이콘 크리에이터 협찬 제안 금액': crew.icon > 0 ? ICON_PRICE : 0,
+            '⭐️ 모집 희망 인원': crew.icon || 0,
+
+            // 파트너 크리에이터
+            '파트너 크리에이터 협찬 제안 금액': crew.partner > 0 ? PARTNER_PRICE : 0,
+            '✔️ 모집 인원': crew.partner || 0,
+
+            // 라이징 크리에이터
+            '라이징 협찬 제안 금액': crew.rising > 0 ? RISING_PRICE : 0,
+            '🔥 모집 인원': crew.rising || 0,
+
+            // 동의 & 비고
+            '동의합니다.': '동의',
+            '프리미엄 협찬 관련 동의 사항': '동의',
+            '비고': formData.additionalRequests || '',
           },
         },
       ],

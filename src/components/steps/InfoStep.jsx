@@ -2,11 +2,14 @@ import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown } from 'lucide-react'
 
 const REGIONS = [
-  '경기도',
+  '경기도(서울, 인천 포함)',
   '강원도',
-  '충청도',
-  '경상도',
-  '전라도',
+  '충청북도',
+  '충청남도',
+  '전라북도',
+  '전라남도',
+  '경상북도',
+  '경상남도',
   '제주도',
 ]
 
