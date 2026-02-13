@@ -57,10 +57,11 @@ function Counter({ label, price, value, onChange, emoji }) {
 
 export default function PackageStep({ budget, selected, onSelect, customCrew, onCustomCrewChange }) {
   const pkg = PACKAGES[budget]
+  const isDirectCustom = budget === 'custom' // 예산에서 '직접 선택할게요' 선택
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
   const [showGuide, setShowGuide] = useState(false)
 
-  if (!pkg) return null
+  if (!pkg && !isDirectCustom) return null
 
   const handleCustomToggle = () => {
     setIsCustom(true)
@@ -101,10 +102,12 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       className="px-5 pt-8 pb-6"
     >
       <h2 className="text-2xl font-extrabold text-white leading-tight mb-2">
-        어떤 플랜이 끌리시나요?
+        {isDirectCustom ? '크리에이터를 직접 구성해보세요' : '어떤 플랜이 끌리시나요?'}
       </h2>
       <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
-        {pkg.subtitle}에 딱 맞는 플랜이에요
+        {isDirectCustom
+          ? '등급별 인원과 금액을 자유롭게 설정하세요'
+          : `${pkg.subtitle}에 딱 맞는 플랜이에요`}
       </p>
 
       {/* 크리에이터 등급 안내 버튼 */}
@@ -124,7 +127,57 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
-      <div className="flex flex-col gap-4">
+      {/* 직접 선택 모드: 크루 카운터만 표시 */}
+      {isDirectCustom && (
+        <div className="flex flex-col gap-3">
+          <Counter
+            label="아이콘 크리에이터"
+            price={PRICING.icon.price}
+            value={customCrew.icon}
+            onChange={(v) => handleCrewChange('icon', v)}
+            emoji="⭐️"
+          />
+          <Counter
+            label="파트너 크리에이터"
+            price={PRICING.partner.price}
+            value={customCrew.partner}
+            onChange={(v) => handleCrewChange('partner', v)}
+            emoji="✔️"
+          />
+          <Counter
+            label="라이징 크리에이터"
+            price={PRICING.rising.price}
+            value={customCrew.rising}
+            onChange={(v) => handleCrewChange('rising', v)}
+            emoji="🔥"
+          />
+
+          {customHeadcount > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="p-4 rounded-xl mt-1"
+              style={{ backgroundColor: 'rgba(114,124,245,0.08)', border: '1px solid rgba(114,124,245,0.2)' }}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>총 인원</span>
+                <span className="text-sm font-bold text-white">{customHeadcount}명</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>금액 (VAT 별도)</span>
+                <span className="text-base font-bold" style={{ color: '#727CF5' }}>{formatPrice(customTotal)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>실 입금 금액 (VAT 포함)</span>
+                <span className="text-sm font-semibold" style={{ color: '#01DF82' }}>{formatPrice(customTotalWithVat)}</span>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {/* 일반 모드: 사전 플랜 + 직접 선택 */}
+      {!isDirectCustom && <div className="flex flex-col gap-4">
         {/* 기존 플랜 목록 */}
         {pkg.plans.map((plan, i) => {
           const isSelected = !isCustom && selected?.id === plan.id
@@ -268,7 +321,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
             </motion.div>
           )}
         </motion.div>
-      </div>
+      </div>}
     </motion.div>
   )
 }

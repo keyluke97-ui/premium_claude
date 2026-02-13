@@ -5,6 +5,7 @@ const budgetOptions = [
   { value: 50, label: '50만원', subtitle: '최대 효과를 원하는 캠핑장', emoji: '💎', color: '#FF7300' },
   { value: 30, label: '30만원', subtitle: '효율적인 마케팅을 원하는 캠핑장', emoji: '⭐', color: '#1975FF' },
   { value: 15, label: '15만원', subtitle: '합리적인 시작을 원하는 캠핑장', emoji: '🌱', color: '#01DF82' },
+  { value: 'custom', label: '직접 선택할게요', subtitle: '등급별 인원을 자유롭게 구성하세요', emoji: '✏️', color: '#727CF5' },
 ]
 
 export default function BudgetStep({ selected, onSelect }) {

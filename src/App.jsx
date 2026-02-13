@@ -80,8 +80,13 @@ export default function App() {
   )
 
   const goBack = useCallback(() => {
-    goTo(step - 1)
-  }, [step, goTo])
+    // custom 예산 + step2(크루 카운터) → step1(예산)로 직접 복귀
+    if (step === 2 && budget === 'custom') {
+      goTo(1)
+    } else {
+      goTo(step - 1)
+    }
+  }, [step, budget, goTo])
 
   // ── Handlers ──
   const handleBudgetSelect = useCallback(
@@ -90,6 +95,10 @@ export default function App() {
       setSelectedPlan(null)
       setCustomCrew({ icon: 0, partner: 0, rising: 0 })
       setTimeout(() => {
+        if (value === 'custom') {
+          // 직접 선택: 크루 카운터 전용 모드로 PackageStep 진입
+          setSelectedPlan({ id: 'custom', name: '직접 선택할게요', crew: { icon: 0, partner: 0, rising: 0 } })
+        }
         goTo(2)
       }, 300)
     },
