@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Users, CheckCircle, Minus, Plus, Settings2 } from 'lucide-react'
+import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle } from 'lucide-react'
 import PACKAGES, { PRICING, calcCrewPrice, calcCrewPriceWithVat } from '../../data/packages'
+import CreatorGuideSheet from '../CreatorGuideSheet'
 
 function formatPrice(n) {
   return n.toLocaleString('ko-KR') + '원'
@@ -57,6 +58,7 @@ function Counter({ label, price, value, onChange, emoji }) {
 export default function PackageStep({ budget, selected, onSelect, customCrew, onCustomCrewChange }) {
   const pkg = PACKAGES[budget]
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
+  const [showGuide, setShowGuide] = useState(false)
 
   if (!pkg) return null
 
@@ -101,9 +103,26 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       <h2 className="text-2xl font-extrabold text-white leading-tight mb-2">
         어떤 플랜이 끌리시나요?
       </h2>
-      <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.45)' }}>
+      <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
         {pkg.subtitle}에 딱 맞는 플랜이에요
       </p>
+
+      {/* 크리에이터 등급 안내 버튼 */}
+      <button
+        onClick={() => setShowGuide(true)}
+        className="flex items-center gap-1.5 mb-6 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          color: 'rgba(255,255,255,0.55)',
+          cursor: 'pointer',
+        }}
+      >
+        <HelpCircle size={14} />
+        크리에이터 등급이 뭔가요?
+      </button>
+
+      <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
       <div className="flex flex-col gap-4">
         {/* 기존 플랜 목록 */}
