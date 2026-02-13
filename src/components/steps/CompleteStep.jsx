@@ -15,9 +15,21 @@ function SummaryRow({ label, value }) {
   )
 }
 
-export default function CompleteStep({ budget, plan, formData }) {
+export default function CompleteStep({ budget, plan, formData, crew }) {
   const [copied, setCopied] = useState(false)
   const accountNumber = '225-910068-71204'
+
+  // 가격 계산 (plan에 priceWithVat이 없을 수 있음)
+  const ICON_PRICE = 300000
+  const PARTNER_PRICE = 100000
+  const RISING_PRICE = 50000
+
+  const computedPrice = (() => {
+    if (plan?.priceWithVat) return plan.priceWithVat
+    const c = crew || plan?.crew || { icon: 0, partner: 0, rising: 0 }
+    const base = (c.icon || 0) * ICON_PRICE + (c.partner || 0) * PARTNER_PRICE + (c.rising || 0) * RISING_PRICE
+    return base > 0 ? Math.round(base * 1.1) : 0
+  })()
 
   const handleCopy = () => {
     navigator.clipboard.writeText(accountNumber).then(() => {
@@ -98,14 +110,14 @@ export default function CompleteStep({ budget, plan, formData }) {
           <div className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
             예금주: <span className="text-white font-semibold">(주) 넥스트에디션</span>
           </div>
-          {plan && (
+          {computedPrice > 0 && (
             <div
               className="mt-1 p-3 rounded-lg flex justify-between items-center"
               style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
             >
               <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
               <span className="text-base font-bold" style={{ color: '#01DF82' }}>
-                {formatPrice(plan.priceWithVat)}
+                {formatPrice(computedPrice)}
               </span>
             </div>
           )}

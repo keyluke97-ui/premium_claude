@@ -330,6 +330,7 @@ export default function App() {
                 budget={budget}
                 plan={selectedPlan}
                 formData={formData}
+                crew={selectedPlan?.id === 'custom' ? customCrew : selectedPlan?.crew}
               />
             )}
           </motion.div>
