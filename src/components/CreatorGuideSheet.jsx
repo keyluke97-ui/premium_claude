@@ -178,14 +178,19 @@ export default function CreatorGuideSheet({ open, onClose }) {
                 ))}
               </div>
 
-              {/* 하단 안내 */}
+              {/* 리스크 헷지 안내 */}
               <div
                 className="mt-4 p-3.5 rounded-xl"
-                style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                style={{ backgroundColor: 'rgba(255,168,0,0.06)', border: '1px solid rgba(255,168,0,0.15)' }}
               >
-                <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  등급은 캠핏이 크리에이터의 평균 노출 수, 콘텐츠 퀄리티 등을 종합 평가하여 부여합니다.
-                  개별 콘텐츠의 반응은 캠핑장 특성과 시기에 따라 달라질 수 있습니다.
+                <p className="text-xs font-semibold mb-1.5" style={{ color: '#FFA800' }}>
+                  안내사항
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  인플루언서 등급은 평균 역량 기준이며, 개별 콘텐츠 반응은 캠핑장/숙소의 특성 및 시기에 따라 달라질 수 있습니다.
+                </p>
+                <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  따라서 등급은 평균적인 역량 지표로 참고해 주시되, 개별 콘텐츠 반응에는 변동이 발생할 수 있다는 점 양해 부탁드립니다.
                 </p>
               </div>
 
