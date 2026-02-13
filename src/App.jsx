@@ -27,6 +27,7 @@ const INITIAL_FORM = {
   phone: '',
   email: '',
   region: '',
+  siteTypes: [],
   additionalRequests: '',
 }
 
@@ -159,6 +160,7 @@ export default function App() {
       e.email = '올바른 이메일 형식을 입력해주세요'
     }
     if (!formData.region) e.region = '소재 권역을 선택해주세요'
+    if (!formData.siteTypes || formData.siteTypes.length === 0) e.siteTypes = '사이트 종류를 1개 이상 선택해주세요'
     setErrors(e)
     return Object.keys(e).length === 0
   }, [formData])

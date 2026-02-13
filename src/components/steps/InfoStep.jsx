@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown } from 'lucide-react'
+import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent } from 'lucide-react'
 
 const REGIONS = [
   '경기도(서울, 인천 포함)',
@@ -46,7 +46,17 @@ const fields = [
   },
 ]
 
+const SITE_TYPES = ['오토캠핑', '글램핑', '카라반', '두가족존', '방갈로', '차박']
+
 export default function InfoStep({ data, onChange, errors }) {
+  const selectedSiteTypes = data.siteTypes || []
+
+  const toggleSiteType = (type) => {
+    const next = selectedSiteTypes.includes(type)
+      ? selectedSiteTypes.filter((t) => t !== type)
+      : [...selectedSiteTypes, type]
+    onChange('siteTypes', next)
+  }
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -178,11 +188,51 @@ export default function InfoStep({ data, onChange, errors }) {
           )}
         </motion.div>
 
-        {/* 추가 요청사항 */}
+        {/* 제공 가능한 사이트 종류 */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: (fields.length + 1) * 0.05 }}
+        >
+          <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            <Tent size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
+            제공 가능한 사이트 종류
+            <span style={{ color: '#FF383C' }}>*</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {SITE_TYPES.map((type) => {
+              const isActive = selectedSiteTypes.includes(type)
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleSiteType(type)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+                  style={{
+                    border: `1.5px solid ${isActive ? '#01DF82' : 'rgba(255,255,255,0.12)'}`,
+                    backgroundColor: isActive ? 'rgba(1,223,130,0.12)' : 'rgba(255,255,255,0.05)',
+                    color: isActive ? '#01DF82' : 'rgba(255,255,255,0.5)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {type}
+                </button>
+              )
+            })}
+          </div>
+          {errors.siteTypes && (
+            <div className="flex items-center gap-1 mt-1.5 text-xs" style={{ color: '#FF383C' }}>
+              <AlertCircle size={12} />
+              {errors.siteTypes}
+            </div>
+          )}
+        </motion.div>
+
+        {/* 추가 요청사항 */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: (fields.length + 2) * 0.05 }}
         >
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <MessageSquare size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />

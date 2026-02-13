@@ -83,6 +83,9 @@ export default async (req) => {
             '라이징 협찬 제안 금액': crew.rising > 0 ? RISING_PRICE : 0,
             '🔥 모집 인원': crew.rising || 0,
 
+            // 사이트 종류
+            '제공 가능한 사이트 종류': formData.siteTypes || [],
+
             // 동의 & 비고
             '동의합니다.': '동의',
             '프리미엄 협찬 관련 동의 사항': '동의',

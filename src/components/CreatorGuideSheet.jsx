@@ -68,10 +68,9 @@ export default function CreatorGuideSheet({ open, onClose }) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-1/2 z-50 w-full overflow-hidden"
+            className="fixed bottom-0 left-0 right-0 z-50 w-full overflow-hidden mx-auto"
             style={{
               maxWidth: 448,
-              transform: 'translateX(-50%)',
               maxHeight: '88vh',
               borderRadius: '20px 20px 0 0',
               backgroundColor: '#1A1A1A',
