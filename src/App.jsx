@@ -66,6 +66,8 @@ export default function App() {
   const [errors, setErrors] = useState({})
   const [agreements, setAgreements] = useState(INITIAL_AGREEMENTS)
   const [customCrew, setCustomCrew] = useState({ icon: 0, partner: 0, rising: 0 })
+  // critical 조항 개별 동의 (key: clause index, value: boolean)
+  const [criticalAcks, setCriticalAcks] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ── Navigation ──
@@ -78,12 +80,8 @@ export default function App() {
   )
 
   const goBack = useCallback(() => {
-    if (step === 3 && budget === 'custom') {
-      goTo(1)
-    } else {
-      goTo(step - 1)
-    }
-  }, [step, budget, goTo])
+    goTo(step - 1)
+  }, [step, goTo])
 
   // ── Handlers ──
   const handleBudgetSelect = useCallback(
@@ -92,11 +90,7 @@ export default function App() {
       setSelectedPlan(null)
       setCustomCrew({ icon: 0, partner: 0, rising: 0 })
       setTimeout(() => {
-        if (value === 'custom') {
-          goTo(3)
-        } else {
-          goTo(2)
-        }
+        goTo(2)
       }, 300)
     },
     [goTo]
@@ -122,16 +116,27 @@ export default function App() {
     setAgreements((prev) => ({ ...prev, [id]: !prev[id] }))
   }, [])
 
-  const handleToggleAll = useCallback(() => {
-    setAgreements((prev) => {
-      const allChecked = Object.values(prev).every(Boolean)
-      const newVal = !allChecked
-      return {
-        contract: newVal,
-        privacy: newVal,
-      }
-    })
+  const handleCriticalAck = useCallback((clauseIndex) => {
+    setCriticalAcks((prev) => ({ ...prev, [clauseIndex]: !prev[clauseIndex] }))
   }, [])
+
+  // critical 조항 인덱스 (agreements.js 의 contract.clauses 기준)
+  const CRITICAL_INDICES = [1, 4, 6, 7, 8, 12] // 제2,5,7,8,9,13조
+
+  const allCriticalAcked = CRITICAL_INDICES.every((i) => criticalAcks[i])
+
+  const handleToggleAll = useCallback(() => {
+    const allChecked = Object.values(agreements).every(Boolean) && allCriticalAcked
+    const newVal = !allChecked
+    setAgreements({ contract: newVal, privacy: newVal })
+    if (newVal) {
+      const newAcks = {}
+      CRITICAL_INDICES.forEach((i) => { newAcks[i] = true })
+      setCriticalAcks((prev) => ({ ...prev, ...newAcks }))
+    } else {
+      setCriticalAcks({})
+    }
+  }, [agreements, allCriticalAcked])
 
   // ── Validation ──
   const validateForm = useCallback(() => {
@@ -149,7 +154,7 @@ export default function App() {
     return Object.keys(e).length === 0
   }, [formData])
 
-  const allRequiredAgreed = agreements.contract && agreements.privacy
+  const allRequiredAgreed = agreements.contract && agreements.privacy && allCriticalAcked
 
   // ── Submit ──
   const handleSubmit = useCallback(async () => {
@@ -161,10 +166,8 @@ export default function App() {
         ? customCrew
         : selectedPlan?.crew || { icon: 0, partner: 0, rising: 0 }
 
-      // 선택플랜: 실제 플랜명 전송 (커스텀이면 '직접 선택할게요', 맞춤상담이면 '맞춤 상담 요청')
-      const planTier = budget === 'custom'
-        ? '맞춤 상담 요청'
-        : selectedPlan?.name || '직접 선택할게요'
+      // 선택플랜: 실제 플랜명 전송 (커스텀 크루 선택이면 '직접 선택할게요')
+      const planTier = selectedPlan?.name || '직접 선택할게요'
 
       await submitApplication({ budget, selectedPlan, formData, crew, planTier })
       goTo(5)
@@ -307,6 +310,8 @@ export default function App() {
                 agreements={agreements}
                 onToggle={handleAgreementToggle}
                 onToggleAll={handleToggleAll}
+                criticalAcks={criticalAcks}
+                onCriticalAck={handleCriticalAck}
               />
             )}
             {step === 5 && (

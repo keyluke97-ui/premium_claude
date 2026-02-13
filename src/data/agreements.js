@@ -14,6 +14,7 @@ const AGREEMENTS = [
         num: '제2조',
         title: '변경 불가',
         text: '매칭 완료 이후에는 크리에이터 변경, 인원 축소, 금액 조정 등 협찬 조건 변경이 불가합니다.',
+        critical: true,
       },
       {
         num: '제3조',
@@ -29,6 +30,7 @@ const AGREEMENTS = [
         num: '제5조',
         title: '선수납',
         text: '본 서비스의 유료협찬 비용은 선수납 방식이며, 해당 금액은 협찬 집행을 위한 중개 집행 요청금입니다.',
+        critical: true,
       },
       {
         num: '제6조',
@@ -39,16 +41,19 @@ const AGREEMENTS = [
         num: '제7조',
         title: '환불',
         text: '부분 집행 시, 집행 완료 건을 제외한 미집행 금액에 한해서만 환불이 가능합니다.',
+        critical: true,
       },
       {
         num: '제8조',
         title: '성과 면책',
         text: '콘텐츠의 조회수·반응 등 성과는 보장되지 않습니다. (크리에이터 등급은 평균 지표임)',
+        critical: true,
       },
       {
         num: '제9조',
         title: '퀄리티 면책',
         text: '표현 방식, 연출 등 주관적 요소를 이유로 환불·재제작 요구는 불가합니다.',
+        critical: true,
       },
       {
         num: '제10조',
@@ -69,6 +74,7 @@ const AGREEMENTS = [
         num: '제13조',
         title: '노쇼 및 페널티',
         text: '인플루언서의 노쇼(No-show) 또는 개인 사정으로 인한 예약 취소 시 발생하는 수수료 및 숙박비는 보상되지 않습니다.',
+        critical: true,
         exception: {
           title: '페널티 미부여 사유',
           items: [
