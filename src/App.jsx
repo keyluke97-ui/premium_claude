@@ -9,7 +9,7 @@ import InfoStep from './components/steps/InfoStep'
 import AgreementStep from './components/steps/AgreementStep'
 import CompleteStep from './components/steps/CompleteStep'
 import { submitApplication } from './utils/airtable'
-import { BUDGET_TO_PLAN_TIER, PRICING } from './data/packages'
+import { PRICING } from './data/packages'
 
 /*
  * 퍼널 단계:
@@ -161,7 +161,10 @@ export default function App() {
         ? customCrew
         : selectedPlan?.crew || { icon: 0, partner: 0, rising: 0 }
 
-      const planTier = BUDGET_TO_PLAN_TIER[budget] || '직접 선택할게요'
+      // 선택플랜: 실제 플랜명 전송 (커스텀이면 '직접 선택할게요', 맞춤상담이면 '맞춤 상담 요청')
+      const planTier = budget === 'custom'
+        ? '맞춤 상담 요청'
+        : selectedPlan?.name || '직접 선택할게요'
 
       await submitApplication({ budget, selectedPlan, formData, crew, planTier })
       goTo(5)

@@ -13,14 +13,6 @@ export const PRICING = {
   rising: { label: '라이징', price: 50000 },
 }
 
-/** 예산 → Airtable 선택플랜 매핑 */
-export const BUDGET_TO_PLAN_TIER = {
-  50: '프리미엄 플러스',
-  30: '프리미엄',
-  15: '스탠다드',
-  custom: '직접 선택할게요',
-}
-
 /** crew 구성에서 총 금액 계산 (VAT 별도) */
 export function calcCrewPrice(crew) {
   return (

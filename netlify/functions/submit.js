@@ -65,8 +65,10 @@ export default async (req) => {
             '캠지기님 이메일': formData.email || '',
             '숙소 위치': formData.region || '',
 
-            // 예산 & 플랜
-            '선택예산': budget === 'custom' ? '맞춤상담' : `${budget}만원`,
+            // 예산 & 플랜 — Airtable 필드명·옵션 그대로
+            '선택 예산': budget === 'custom'
+              ? '직접 결정할게요'
+              : `${budget}만원 (vat 별도)`,
             '선택플랜': planTier || '',
 
             // 아이콘 크리에이터
