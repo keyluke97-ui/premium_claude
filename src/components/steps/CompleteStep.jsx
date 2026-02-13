@@ -32,10 +32,29 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
   })()
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(accountNumber).then(() => {
+    const doCopy = () => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {})
+    }
+    // clipboard API 지원 시
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(accountNumber).then(doCopy).catch(() => {
+        // fallback: execCommand
+        fallbackCopy()
+      })
+    } else {
+      fallbackCopy()
+    }
+    function fallbackCopy() {
+      const ta = document.createElement('textarea')
+      ta.value = accountNumber
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy'); doCopy() } catch {} // eslint-disable-line
+      document.body.removeChild(ta)
+    }
   }
 
   return (

@@ -8,8 +8,11 @@ function formatPrice(n) {
   return n.toLocaleString('ko-KR') + '원'
 }
 
+const MAX_CREW_PER_TIER = 10
+
 /** 인원 카운터 컴포넌트 */
 function Counter({ label, price, value, onChange, emoji }) {
+  const atMax = value >= MAX_CREW_PER_TIER
   return (
     <div
       className="flex items-center justify-between py-3 px-4 rounded-xl"
@@ -39,13 +42,13 @@ function Counter({ label, price, value, onChange, emoji }) {
         </button>
         <span className="text-lg font-bold text-white w-6 text-center">{value}</span>
         <button
-          onClick={() => onChange(value + 1)}
+          onClick={() => !atMax && onChange(value + 1)}
           className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
           style={{
-            backgroundColor: '#01DF82',
+            backgroundColor: atMax ? 'rgba(255,255,255,0.08)' : '#01DF82',
             border: 'none',
-            cursor: 'pointer',
-            color: '#000',
+            cursor: atMax ? 'not-allowed' : 'pointer',
+            color: atMax ? 'rgba(255,255,255,0.3)' : '#000',
           }}
         >
           <Plus size={14} />

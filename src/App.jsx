@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ArrowRight, Send } from 'lucide-react'
+import { ChevronLeft, ArrowRight, Send, AlertCircle } from 'lucide-react'
 
 import IntroStep from './components/steps/IntroStep'
 import BudgetStep from './components/steps/BudgetStep'
@@ -70,17 +70,46 @@ export default function App() {
   // critical 조항 개별 동의 (key: clause index, value: boolean)
   const [criticalAcks, setCriticalAcks] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+  const submitLockRef = useRef(false) // 더블 제출 방지용 ref
+
+  // ── 브라우저 뒤로가기 방어 (history API) ──
+  useEffect(() => {
+    // 초기 히스토리 상태 설정
+    window.history.replaceState({ step: 0 }, '')
+
+    const handlePopState = (e) => {
+      // 브라우저 뒤로가기 시 폼 이탈 방지 — 다시 현재 위치로 push
+      window.history.pushState({ step }, '')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [step])
+
+  // step 변경 시 history push
+  useEffect(() => {
+    if (step > 0) {
+      window.history.pushState({ step }, '')
+    }
+  }, [step])
 
   // ── Navigation ──
   const goTo = useCallback(
     (newStep) => {
       setDirection(newStep > step ? 1 : -1)
       setStep(newStep)
+      setSubmitError(null) // 에러 초기화
     },
     [step]
   )
 
   const goBack = useCallback(() => {
+    // step 0 또는 1에서는 인트로로
+    if (step <= 1) {
+      goTo(0)
+      return
+    }
     // custom 예산 + step2(크루 카운터) → step1(예산)로 직접 복귀
     if (step === 2 && budget === 'custom') {
       goTo(1)
@@ -153,7 +182,11 @@ export default function App() {
     const e = {}
     if (!formData.accommodationName.trim()) e.accommodationName = '캠핑장 이름을 입력해주세요'
     if (!formData.representativeName.trim()) e.representativeName = '대표자명을 입력해주세요'
-    if (!formData.phone.trim()) e.phone = '연락처를 입력해주세요'
+    if (!formData.phone.trim()) {
+      e.phone = '연락처를 입력해주세요'
+    } else if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(formData.phone.replace(/\s/g, ''))) {
+      e.phone = '올바른 휴대폰 번호를 입력해주세요'
+    }
     if (!formData.email.trim()) {
       e.email = '이메일을 입력해주세요'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -169,8 +202,10 @@ export default function App() {
 
   // ── Submit ──
   const handleSubmit = useCallback(async () => {
-    if (!allRequiredAgreed || isSubmitting) return
+    if (!allRequiredAgreed || isSubmitting || submitLockRef.current) return
+    submitLockRef.current = true // 더블 제출 방지
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
       // crew 구성 결정: 커스텀이면 customCrew, 아니면 plan.crew
       const crew = selectedPlan?.id === 'custom'
@@ -184,9 +219,10 @@ export default function App() {
       goTo(5)
     } catch (err) {
       console.error('Submit error:', err)
-      goTo(5)
+      setSubmitError('신청 중 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
       setIsSubmitting(false)
+      submitLockRef.current = false
     }
   }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo])
 
@@ -337,14 +373,38 @@ export default function App() {
         </AnimatePresence>
       </div>
 
+      {/* 제출 에러 토스트 */}
+      <AnimatePresence>
+        {submitError && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-28 left-0 right-0 z-40 mx-auto px-5"
+            style={{ maxWidth: 448 }}
+          >
+            <div
+              className="flex items-center gap-2.5 p-4 rounded-2xl"
+              style={{
+                backgroundColor: 'rgba(255,56,60,0.12)',
+                border: '1px solid rgba(255,56,60,0.3)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <AlertCircle size={18} style={{ color: '#FF383C', flexShrink: 0 }} />
+              <span className="text-sm font-medium" style={{ color: '#FF383C' }}>{submitError}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 하단 네비게이션 */}
       {showBottomNav && btnConfig && (
         <div
-          className="fixed bottom-0 left-1/2 w-full z-30"
+          className="fixed bottom-0 left-0 right-0 w-full z-30 mx-auto"
           style={{
             maxWidth: 448,
-            transform: 'translateX(-50%)',
-            padding: '12px 20px 32px',
+            padding: '12px 20px env(safe-area-inset-bottom, 32px)',
             backgroundColor: '#111111',
             borderTop: '1px solid rgba(255,255,255,0.06)',
           }}
