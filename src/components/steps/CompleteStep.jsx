@@ -85,7 +85,7 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
           신청이 완료되었습니다!
         </h2>
         <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
-          아래 계좌로 입금 후 담당자가 확인 연락드립니다
+          아래 계좌 입금 후 협찬이 오픈되며, 관련 내용은 하기 적어주신 이메일로 발송됩니다.
         </p>
       </motion.div>
 
@@ -164,7 +164,7 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
           <SummaryRow label="캠핑장" value={formData.accommodationName} />
           <SummaryRow
             label="예산"
-            value={budget === 'custom' ? '맞춤 상담' : `${budget}만원`}
+            value={budget === 'custom' || plan?.id === 'custom' ? '맞춤 상담' : `${budget}만원`}
           />
           {plan && <SummaryRow label="선택 플랜" value={plan.name} />}
           <SummaryRow label="대표자" value={formData.representativeName} />
