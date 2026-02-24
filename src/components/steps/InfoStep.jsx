@@ -228,11 +228,46 @@ export default function InfoStep({ data, onChange, errors }) {
           )}
         </motion.div>
 
-        {/* 추가 요청사항 */}
+        {/* 숙소 홍보 문구 */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: (fields.length + 2) * 0.05 }}
+        >
+          <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            <Building size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
+            우리 숙소를 크리에이터에게 홍보해주세요!
+          </label>
+          <textarea
+            value={data.promotion || ''}
+            onChange={(e) => onChange('promotion', e.target.value)}
+            placeholder="숙소의 특장점을 자유롭게 적어주세요 (예: 계곡 바로 앞, 감성 인테리어, 반려견 동반 가능 등)"
+            rows={3}
+            className="w-full text-base text-white resize-y"
+            style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: '1.5px solid rgba(255,255,255,0.12)',
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              outline: 'none',
+              fontFamily: 'inherit',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#01DF82'
+              e.target.style.boxShadow = '0 0 0 3px rgba(1,223,130,0.15)'
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(255,255,255,0.12)'
+              e.target.style.boxShadow = 'none'
+            }}
+          />
+        </motion.div>
+
+        {/* 추가 요청사항 */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: (fields.length + 3) * 0.05 }}
         >
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <MessageSquare size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />

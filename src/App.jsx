@@ -28,6 +28,7 @@ const INITIAL_FORM = {
   email: '',
   region: '',
   siteTypes: [],
+  promotion: '',
   additionalRequests: '',
 }
 

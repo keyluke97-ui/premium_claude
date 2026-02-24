@@ -86,6 +86,9 @@ export default async (req) => {
             // 사이트 종류
             '제공 가능한 사이트 종류': formData.siteTypes || [],
 
+            // 숙소 특장점
+            '숙소의 특장점': formData.promotion || '',
+
             // 동의 & 비고
             '동의합니다.': '동의',
             '프리미엄 협찬 관련 동의 사항': '동의',
