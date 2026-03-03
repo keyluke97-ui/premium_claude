@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ArrowRight, Send, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ArrowRight, Send, AlertCircle, MessageCircle } from 'lucide-react'
 
 import IntroStep from './components/steps/IntroStep'
 import BudgetStep from './components/steps/BudgetStep'
@@ -37,6 +37,9 @@ const INITIAL_AGREEMENTS = {
   privacy: false,
 }
 
+const MAX_RETRY = 3
+const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_fBxaQG/chat'
+
 // 프로그레스 바 컴포넌트
 function ProgressBar({ step }) {
   const progress = (step / 4) * 100
@@ -72,6 +75,7 @@ export default function App() {
   const [criticalAcks, setCriticalAcks] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
   const submitLockRef = useRef(false) // 더블 제출 방지용 ref
 
   // ── 브라우저 뒤로가기 방어 (history API) ──
@@ -217,15 +221,37 @@ export default function App() {
       const planTier = selectedPlan?.name || '직접 선택할게요'
 
       await submitApplication({ budget, selectedPlan, formData, crew, planTier })
+      setRetryCount(0)
       goTo(5)
     } catch (err) {
       console.error('Submit error:', err)
-      setSubmitError('신청 중 오류가 발생했습니다. 다시 시도해주세요.')
+      const newCount = retryCount + 1
+      setRetryCount(newCount)
+
+      if (newCount >= MAX_RETRY) {
+        setSubmitError({
+          type: 'max_retry',
+          message: '신청 처리에 문제가 지속되고 있습니다.',
+          detail: '카카오톡 채널로 직접 문의해 주세요.',
+        })
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        setSubmitError({
+          type: 'network',
+          message: '네트워크 연결을 확인해 주세요.',
+          detail: 'Wi-Fi 또는 데이터 연결 상태를 확인 후 다시 시도해 주세요.',
+        })
+      } else {
+        setSubmitError({
+          type: 'server',
+          message: '신청 중 문제가 발생했습니다.',
+          detail: '잠시 후 다시 시도해 주세요.',
+        })
+      }
     } finally {
       setIsSubmitting(false)
       submitLockRef.current = false
     }
-  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo])
+  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo, retryCount])
 
   // ── Next 버튼 핸들러 ──
   const handleNext = useCallback(() => {
@@ -374,31 +400,6 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      {/* 제출 에러 토스트 */}
-      <AnimatePresence>
-        {submitError && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-28 left-0 right-0 z-40 mx-auto px-5"
-            style={{ maxWidth: 448 }}
-          >
-            <div
-              className="flex items-center gap-2.5 p-4 rounded-2xl"
-              style={{
-                backgroundColor: 'rgba(255,56,60,0.12)',
-                border: '1px solid rgba(255,56,60,0.3)',
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              <AlertCircle size={18} style={{ color: '#FF383C', flexShrink: 0 }} />
-              <span className="text-sm font-medium" style={{ color: '#FF383C' }}>{submitError}</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* 하단 네비게이션 */}
       {showBottomNav && btnConfig && (
         <div
@@ -410,6 +411,63 @@ export default function App() {
             borderTop: '1px solid rgba(255,255,255,0.06)',
           }}
         >
+          {/* 에러 배너 */}
+          <AnimatePresence>
+            {submitError && step === 4 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.25 }}
+                className="mb-3 rounded-xl px-4 py-3"
+                style={{
+                  backgroundColor: submitError.type === 'max_retry'
+                    ? 'rgba(255,193,7,0.1)'
+                    : 'rgba(255,56,60,0.1)',
+                  border: `1px solid ${submitError.type === 'max_retry'
+                    ? 'rgba(255,193,7,0.25)'
+                    : 'rgba(255,56,60,0.25)'}`,
+                }}
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle
+                    size={16}
+                    className="flex-shrink-0 mt-0.5"
+                    style={{
+                      color: submitError.type === 'max_retry' ? '#FFC107' : '#FF383C',
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold" style={{
+                      color: submitError.type === 'max_retry' ? '#FFC107' : '#FF383C',
+                    }}>
+                      {submitError.message}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      {submitError.detail}
+                    </p>
+                    {submitError.type === 'max_retry' && (
+                      <a
+                        href={KAKAO_CHANNEL_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-2 rounded-lg text-xs font-bold transition-all"
+                        style={{
+                          backgroundColor: '#FEE500',
+                          color: '#3C1E1E',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        <MessageCircle size={14} />
+                        카카오톡으로 문의하기
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <motion.button
             whileTap={btnConfig.disabled ? {} : { scale: 0.98 }}
             onClick={handleNext}
@@ -429,7 +487,7 @@ export default function App() {
               <span className="animate-pulse">신청 중...</span>
             ) : (
               <>
-                {btnConfig.text}
+                {submitError && submitError.type !== 'max_retry' ? '다시 시도하기' : btnConfig.text}
                 {btnConfig.icon}
               </>
             )}

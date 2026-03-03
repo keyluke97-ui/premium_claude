@@ -41,15 +41,24 @@ export async function submitApplication(data) {
   }
 
   // 프로덕션: Netlify Serverless Function 호출
-  const response = await fetch('/api/submit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ budget, selectedPlan, formData, crew, planTier }),
-  })
+  let response
+  try {
+    response = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ budget, selectedPlan, formData, crew, planTier }),
+    })
+  } catch (fetchErr) {
+    // fetch 자체 실패 = 네트워크 문제
+    throw new Error('NetworkError: ' + fetchErr.message)
+  }
 
   if (!response.ok) {
-    const errorBody = await response.text()
-    throw new Error(`API Error (${response.status}): ${errorBody}`)
+    let errorBody = ''
+    try {
+      errorBody = await response.text()
+    } catch (_) {}
+    throw new Error(`ServerError (${response.status}): ${errorBody}`)
   }
 
   return await response.json()
