@@ -1,16 +1,94 @@
+// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar 포함)
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle } from 'lucide-react'
+import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp } from 'lucide-react'
 import PACKAGES, { PRICING, calcCrewPrice, calcCrewPriceWithVat } from '../../data/packages'
 import CreatorGuideSheet from '../CreatorGuideSheet'
 
-function formatPrice(n) {
-  return n.toLocaleString('ko-KR') + '원'
+function formatPrice(number) {
+  return number.toLocaleString('ko-KR') + '원'
+}
+
+function formatPriceShort(number) {
+  if (number >= 10000) {
+    return (number / 10000) + '만'
+  }
+  return number.toLocaleString('ko-KR')
 }
 
 const MAX_CREW_PER_TIER = 10
 
-/** 인원 카운터 컴포넌트 */
+// CHANGED: 등급별 색상 매핑 추가
+const TIER_COLORS = {
+  icon: '#FF383C',
+  partner: '#1975FF',
+  rising: '#01DF82',
+}
+
+// CHANGED: 등급별 아이콘 매핑 추가
+const TIER_ICONS = {
+  icon: Zap,
+  partner: Star,
+  rising: TrendingUp,
+}
+
+// CHANGED: 등급별 단가 요약 바 컴포넌트
+function TierSummaryBar() {
+  return (
+    <div
+      className="flex items-center justify-between rounded-xl px-4 py-3 mb-5"
+      style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+      {Object.entries(PRICING).map(([key, tier], index) => {
+        const TierIcon = TIER_ICONS[key]
+        const tierColor = TIER_COLORS[key]
+        return (
+          <div key={key} className="flex items-center gap-1.5">
+            {index > 0 && (
+              <span className="mr-2 text-xs" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+            )}
+            <TierIcon size={13} color={tierColor} />
+            <span className="text-xs font-semibold" style={{ color: tierColor }}>{tier.label}</span>
+            <span className="text-xs font-bold text-white">{formatPriceShort(tier.price)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// CHANGED: 플랜 카드 내 등급별 단가 breakdown 라인 컴포넌트
+function BreakdownLine({ crew }) {
+  if (!crew) return null
+
+  const parts = Object.entries(crew)
+    .filter(([, count]) => count > 0)
+    .map(([tier, count]) => {
+      const tierData = PRICING[tier]
+      const tierColor = TIER_COLORS[tier]
+      return { tier, count, label: tierData.label, unitPrice: tierData.price, tierColor }
+    })
+
+  if (parts.length === 0) return null
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1 text-xs"
+      style={{ color: 'rgba(255,255,255,0.35)' }}
+    >
+      {parts.map((part, index) => (
+        <span key={part.tier} className="flex items-center gap-0.5">
+          {index > 0 && <span className="mr-0.5">+</span>}
+          <span style={{ color: part.tierColor, fontWeight: 600 }}>{part.label}</span>
+          <span>{formatPriceShort(part.unitPrice)}</span>
+          <span>×{part.count}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// 인원 카운터 컴포넌트
 function Counter({ label, price, value, onChange, emoji }) {
   const atMax = value >= MAX_CREW_PER_TIER
   return (
@@ -60,7 +138,7 @@ function Counter({ label, price, value, onChange, emoji }) {
 
 export default function PackageStep({ budget, selected, onSelect, customCrew, onCustomCrewChange }) {
   const pkg = PACKAGES[budget]
-  const isDirectCustom = budget === 'custom' // 예산에서 '직접 선택할게요' 선택
+  const isDirectCustom = budget === 'custom'
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
   const [showGuide, setShowGuide] = useState(false)
 
@@ -68,7 +146,6 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
   const handleCustomToggle = () => {
     setIsCustom(true)
-    // 기본 crew 설정
     const crew = customCrew || { icon: 0, partner: 0, rising: 0 }
     onCustomCrewChange(crew)
     onSelect({
@@ -116,7 +193,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       {/* 크리에이터 등급 안내 버튼 */}
       <button
         onClick={() => setShowGuide(true)}
-        className="flex items-center gap-1.5 mb-6 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        className="flex items-center gap-1.5 mb-5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
         style={{
           backgroundColor: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -129,6 +206,9 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       </button>
 
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
+
+      {/* CHANGED: 등급별 단가 요약 바 추가 */}
+      <TierSummaryBar />
 
       {/* 직접 선택 모드: 크루 카운터만 표시 */}
       {isDirectCustom && (
@@ -182,15 +262,15 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       {/* 일반 모드: 사전 플랜 + 직접 선택 */}
       {!isDirectCustom && <div className="flex flex-col gap-4">
         {/* 기존 플랜 목록 */}
-        {pkg.plans.map((plan, i) => {
+        {pkg.plans.map((plan, planIndex) => {
           const isSelected = !isCustom && selected?.id === plan.id
-          const Icon = plan.Icon
+          const PlanIcon = plan.Icon
           return (
             <motion.button
               key={plan.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.08 }}
+              transition={{ duration: 0.35, delay: planIndex * 0.08 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handlePlanSelect(plan)}
               className="w-full rounded-2xl text-left overflow-hidden transition-all duration-200"
@@ -202,6 +282,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                 padding: 0,
               }}
             >
+              {/* 카드 상단: 배지 + 플랜명 */}
               <div className="p-5 flex justify-between items-start" style={{ background: plan.bgGradient }}>
                 <div>
                   <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold mb-2" style={{ backgroundColor: plan.accent, color: '#000' }}>
@@ -210,23 +291,31 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                   <div className="text-lg font-bold text-white">{plan.name}</div>
                 </div>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                  <Icon size={22} color={plan.accent} />
+                  <PlanIcon size={22} color={plan.accent} />
                 </div>
               </div>
+
+              {/* 카드 하단: 구성 + breakdown + 가격 */}
               <div className="px-5 py-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <Users size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
                   <span className="text-sm font-semibold text-white">{plan.composition}</span>
                   <span className="px-2 py-0.5 rounded-md text-xs font-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}>
                     {plan.total}
                   </span>
                 </div>
-                <div className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{plan.effect}</div>
+
+                {/* CHANGED: 등급별 단가 breakdown 추가 */}
+                <BreakdownLine crew={plan.crew} />
+
+                <div className="text-sm mt-3 mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{plan.effect}</div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-base font-bold" style={{ color: plan.accent }}>{formatPrice(plan.price)}</span>
                   <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>VAT 포함 {formatPrice(plan.priceWithVat)}</span>
                 </div>
               </div>
+
+              {/* 선택됨 표시 */}
               {isSelected && (
                 <div className="py-3 flex items-center justify-center gap-2 text-sm font-semibold" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(1,223,130,0.08)', color: '#01DF82' }}>
                   <CheckCircle size={16} /> 선택됨
