@@ -26,6 +26,7 @@ const INITIAL_FORM = {
   representativeName: '',
   phone: '',
   email: '',
+  businessNumber: '', // CHANGED: 사업자 번호 필드 추가
   region: '',
   siteTypes: [],
   promotion: '',
@@ -196,6 +197,12 @@ export default function App() {
       e.email = '이메일을 입력해주세요'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       e.email = '올바른 이메일 형식을 입력해주세요'
+    }
+    // CHANGED: 사업자 번호 필수 검증 추가
+    if (!formData.businessNumber.trim()) {
+      e.businessNumber = '사업자 번호를 입력해주세요'
+    } else if (!/^\d{3}-?\d{2}-?\d{5}$/.test(formData.businessNumber.replace(/\s/g, ''))) {
+      e.businessNumber = '올바른 사업자 번호를 입력해주세요 (예: 123-45-67890)'
     }
     if (!formData.region) e.region = '소재 권역을 선택해주세요'
     if (!formData.siteTypes || formData.siteTypes.length === 0) e.siteTypes = '사이트 종류를 1개 이상 선택해주세요'

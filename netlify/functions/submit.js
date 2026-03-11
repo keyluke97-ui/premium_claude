@@ -63,6 +63,7 @@ export default async (req) => {
             '대표자명': formData.representativeName || '',
             '연락처': formData.phone || '',
             '캠지기님 이메일': formData.email || '',
+            '사업자 번호': formData.businessNumber || '', // CHANGED: 사업자 번호 필드 매핑 추가
             '숙소 위치': formData.region || '',
 
             // 예산 & 플랜 — Airtable 필드명·옵션 그대로

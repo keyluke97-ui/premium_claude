@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent } from 'lucide-react'
+import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText } from 'lucide-react' // CHANGED: FileText 아이콘 추가 (사업자 번호용)
 
 const REGIONS = [
   '경기도(서울, 인천 포함)',
@@ -42,6 +42,14 @@ const fields = [
     placeholder: 'example@email.com',
     Icon: Mail,
     type: 'email',
+    required: true,
+  },
+  // CHANGED: 사업자 번호 필드 추가
+  {
+    key: 'businessNumber',
+    label: '사업자 번호',
+    placeholder: '123-45-67890',
+    Icon: FileText,
     required: true,
   },
 ]
