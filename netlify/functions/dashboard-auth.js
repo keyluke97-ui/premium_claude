@@ -36,10 +36,9 @@ export default async (request) => {
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // cleanNumber는 숫자만 허용하므로 추가 이스케이프 불필요
+    // CHANGED: 하이픈 포함/미포함 모두 매칭되도록 SUBSTITUTE로 Airtable 값에서도 하이픈 제거 후 비교
     const filterFormula = encodeURIComponent(
-      `AND({사업자 번호}='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
+      `AND(SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
     )
 
     const airtableUrl =
