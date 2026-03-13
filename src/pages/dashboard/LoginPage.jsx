@@ -61,8 +61,8 @@ export default function LoginPage() {
       setAccommodations(data.accommodations)
 
       if (data.accommodations.length === 1) {
-        // 캠핑장이 하나면 바로 로그인 시도
-        await handleLogin(digits, data.accommodations[0])
+        // CHANGED: 객체({name, recordId}) 대신 .name 문자열만 전달하여 auth API 매칭 오류 수정
+        await handleLogin(digits, data.accommodations[0].name)
       } else {
         // 여러 개면 선택 단계로
         setStep('select')
@@ -215,24 +215,25 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {accommodations.map((name) => (
+                  {/* CHANGED: 배열 요소가 객체({name, recordId})이므로 acc.name으로 접근 */}
+                  {accommodations.map((acc) => (
                     <button
-                      key={name}
+                      key={acc.name}
                       onClick={() => {
-                        setSelectedAccommodation(name)
+                        setSelectedAccommodation(acc.name)
                         setError('')
                       }}
                       className="w-full text-left px-4 py-3 rounded-xl text-sm transition-all"
                       style={{
                         backgroundColor:
-                          selectedAccommodation === name ? `${BRAND_GREEN}15` : '#252525',
+                          selectedAccommodation === acc.name ? `${BRAND_GREEN}15` : '#252525',
                         border: `1px solid ${
-                          selectedAccommodation === name ? BRAND_GREEN : BORDER_COLOR
+                          selectedAccommodation === acc.name ? BRAND_GREEN : BORDER_COLOR
                         }`,
-                        color: selectedAccommodation === name ? BRAND_GREEN : '#FFFFFF',
+                        color: selectedAccommodation === acc.name ? BRAND_GREEN : '#FFFFFF',
                       }}
                     >
-                      {name}
+                      {acc.name}
                     </button>
                   ))}
                 </div>
