@@ -1,0 +1,110 @@
+// dashboardApi.js - 캠지기 대시보드 전용 API 클라이언트
+
+const API_BASE = ''
+
+/** 토큰 저장/조회/삭제 */
+const TOKEN_KEY = 'camjigi_dashboard_token'
+const ACCOMMODATION_KEY = 'camjigi_accommodation_name'
+
+export function saveAuth(token, accommodationName) {
+  sessionStorage.setItem(TOKEN_KEY, token)
+  sessionStorage.setItem(ACCOMMODATION_KEY, accommodationName)
+}
+
+export function getToken() {
+  return sessionStorage.getItem(TOKEN_KEY)
+}
+
+export function getAccommodationName() {
+  return sessionStorage.getItem(ACCOMMODATION_KEY)
+}
+
+export function clearAuth() {
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(ACCOMMODATION_KEY)
+}
+
+export function isAuthenticated() {
+  return !!getToken()
+}
+
+/** 인증 헤더 생성 */
+function authHeaders() {
+  const token = getToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
+/** API 응답 공통 처리 */
+async function handleResponse(response) {
+  const data = await response.json()
+
+  if (response.status === 401) {
+    clearAuth()
+    throw new Error(data.error || '인증이 만료되었습니다. 다시 로그인해주세요.')
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || '요청 처리에 실패했습니다.')
+  }
+
+  return data
+}
+
+/** 사업자번호로 캠핑장 목록 조회 */
+export async function lookupAccommodations(businessNumber) {
+  const response = await fetch(`${API_BASE}/api/dashboard/lookup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ businessNumber }),
+  })
+  return handleResponse(response)
+}
+
+/** 로그인 (사업자번호 + 캠핑장 이름) */
+export async function login(businessNumber, accommodationName) {
+  const response = await fetch(`${API_BASE}/api/dashboard/auth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ businessNumber, accommodationName }),
+  })
+  const data = await handleResponse(response)
+
+  if (data.success && data.token) {
+    saveAuth(data.token, data.accommodationName)
+  }
+
+  return data
+}
+
+/** 대시보드 데이터 조회 */
+export async function fetchDashboardData() {
+  const response = await fetch(`${API_BASE}/api/dashboard/data`, {
+    method: 'GET',
+    headers: authHeaders(),
+  })
+  return handleResponse(response)
+}
+
+/** 인원 변경 요청 */
+export async function modifyCrew(newCrew) {
+  const response = await fetch(`${API_BASE}/api/dashboard/modify`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ newCrew }),
+  })
+  return handleResponse(response)
+}
+
+/** 환불 요청 */
+// CHANGED: 환불 요청 시 계좌 정보(은행, 계좌번호, 예금주명) 추가 전송
+export async function requestRefund({ reason, bankName, accountNumber, accountHolder }) {
+  const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder }),
+  })
+  return handleResponse(response)
+}
