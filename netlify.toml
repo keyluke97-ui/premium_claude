@@ -5,3 +5,12 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+# SPA 라우팅: 모든 경로를 index.html로 리다이렉트
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# API 경로는 서버리스 함수가 직접 처리하므로 위 리다이렉트에 영향 없음
+# (Netlify Functions의 config.path가 우선 적용됨)
