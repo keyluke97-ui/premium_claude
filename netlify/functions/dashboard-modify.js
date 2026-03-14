@@ -1,6 +1,6 @@
 // dashboard-modify.js - 미배정 슬롯의 등급 간 인원 변경 + 가격 재계산
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 - 오퍼 테이블 조회 불필요
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -38,7 +38,6 @@ export default async (request) => {
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
-  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건'
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
@@ -83,22 +82,12 @@ export default async (request) => {
       return jsonResponse({ error: '총 모집 인원은 1명 이상이어야 합니다.' }, 400)
     }
 
-    // CHANGED: P-1 - 순차 fetch → Promise.all 병렬 처리 (두 요청은 서로 독립적)
+    // CHANGED: 오퍼 테이블 조회 제거 → 모집 폼의 '신청 가능 인원' 수식 필드로 배정 상태 판단
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // CHANGED: P-2 - maxRecords=200 추가 (무제한 조회 방지)
-    const offerFilter = encodeURIComponent(
-      `{캠핑장명}='${sanitizeForFormula(accommodationName)}'`
-    )
-    const offerUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&maxRecords=200`
-
-    const [formResponse, offerResponse] = await Promise.all([
-      fetch(formRecordUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-      fetch(offerUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-    ])
+    const formResponse = await fetch(formRecordUrl, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    })
 
     if (!formResponse.ok) {
       return jsonResponse({ error: '신청 정보를 찾을 수 없습니다.' }, 404)
@@ -113,19 +102,33 @@ export default async (request) => {
       rising: formFields['🔥 모집 인원'] || 0,
     }
 
-    const assignedByGrade = { icon: 0, partner: 0, rising: 0 }
-
-    if (offerResponse.ok) {
-      const offerData = await offerResponse.json()
-      for (const record of offerData.records || []) {
-        const grade = record.fields['등급'] || 0
-        if (grade === 1) assignedByGrade.icon++
-        else if (grade === 2) assignedByGrade.partner++
-        else if (grade === 3) assignedByGrade.rising++
-      }
+    // CHANGED: 신청 가능 인원 수식 필드에서 배정 인원 역산
+    // 배정 인원 = 모집 인원 - 신청 가능 인원
+    // null/undefined → 모집 인원 0인 등급은 미사용이므로 신청 가능도 0으로 간주
+    const availableSlots = {
+      icon: formFields['⭐️ 신청 가능 인원'] ?? null,
+      partner: formFields['✔️ 신청 가능 인원'] ?? null,
+      rising: formFields['🔥 신청 가능 인원'] ?? null,
     }
 
-    // 3) 변경 요청 인원이 이미 배정된 인원보다 적은지 확인
+    /** 등급별 배정 인원 계산 (엣지케이스 포함) */
+    function getAssignedCount(crewCount, available) {
+      // 모집 인원이 0이면 미사용 등급 → 배정 0
+      if (crewCount === 0) return 0
+      // 신청 가능 인원 필드가 null/undefined → 데이터 누락, 안전하게 모집 인원 전체를 배정된 것으로 처리
+      if (available === null || available === undefined) return crewCount
+      // 음수 방지 (초과 배정 등 비정상 상태)
+      const assigned = crewCount - available
+      return Math.max(0, assigned)
+    }
+
+    const assignedByGrade = {
+      icon: getAssignedCount(currentCrew.icon, availableSlots.icon),
+      partner: getAssignedCount(currentCrew.partner, availableSlots.partner),
+      rising: getAssignedCount(currentCrew.rising, availableSlots.rising),
+    }
+
+    // 3) 변경 요청 인원이 이미 배정된 인원보다 적은지 확인 (감소만 차단, 증가는 허용)
     if (newCrew.icon < assignedByGrade.icon) {
       return jsonResponse(
         { error: `아이콘 등급은 이미 ${assignedByGrade.icon}명이 배정되어 ${assignedByGrade.icon}명 미만으로 줄일 수 없습니다.` },

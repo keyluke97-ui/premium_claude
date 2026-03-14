@@ -1,4 +1,4 @@
-// dashboard-auth.js - 사업자번호 + 캠핑장 이름으로 인증, JWT 토큰 발급
+// dashboard-auth.js - 사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리로 인증, JWT 토큰 발급
 
 import { signToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
 
@@ -28,22 +28,32 @@ export default async (request) => {
   }
 
   try {
-    const { businessNumber, accommodationName } = await request.json()
+    const { businessNumber, accommodationName, phoneLastFour } = await request.json()
 
-    if (!businessNumber || !accommodationName) {
-      return jsonResponse({ error: '사업자 번호와 캠핑장 이름을 모두 입력해주세요.' }, 400)
+    if (!businessNumber || !accommodationName || !phoneLastFour) {
+      return jsonResponse({ error: '사업자 번호, 캠핑장 이름, 연락처 뒷자리를 모두 입력해주세요.' }, 400)
+    }
+
+    // CHANGED: 연락처 뒷자리 4자리 형식 검증
+    const cleanPhoneLastFour = phoneLastFour.replace(/[^0-9]/g, '')
+    if (cleanPhoneLastFour.length !== 4) {
+      return jsonResponse({ error: '연락처 뒷자리 4자리를 정확히 입력해주세요.' }, 400)
     }
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
-    // CHANGED: 하이픈 포함/미포함 모두 매칭되도록 SUBSTITUTE로 Airtable 값에서도 하이픈 제거 후 비교
+    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
+    // cleanNumber는 숫자만 허용하므로 추가 이스케이프 불필요
     const filterFormula = encodeURIComponent(
-      `AND(SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
+      `AND({사업자 번호}='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
     )
+
+    // CHANGED: 연락처 필드도 함께 조회하여 뒷자리 검증에 사용
+    const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent('연락처')
 
     const airtableUrl =
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}` +
-      `?filterByFormula=${filterFormula}&maxRecords=1`
+      `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
 
     const airtableResponse = await fetch(airtableUrl, {
       headers: { Authorization: `Bearer ${API_KEY}` },
@@ -64,6 +74,14 @@ export default async (request) => {
     }
 
     const matchedRecord = records[0]
+
+    // CHANGED: 연락처 뒷자리 4자리 검증
+    const storedPhone = (matchedRecord.fields['연락처'] || '').replace(/[^0-9]/g, '')
+    const storedLastFour = storedPhone.slice(-4)
+
+    if (!storedLastFour || storedLastFour !== cleanPhoneLastFour) {
+      return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+    }
 
     // JWT 토큰 발급 (recordId + 캠핑장 이름 포함)
     const token = signToken(
