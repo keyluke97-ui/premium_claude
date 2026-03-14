@@ -1,6 +1,6 @@
 // dashboard-auth.js - 사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리로 인증, JWT 토큰 발급
 
-import { signToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { signToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: M-1, Item 8 - 공통 유틸 import
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -18,6 +18,12 @@ export default async (request) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
+  // CHANGED: Item 8 - Rate Limiting 검사
+  const rateCheck = checkRateLimit(request)
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds, CORS_HEADERS)
+  }
+
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const TABLE_ID = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
@@ -28,7 +34,7 @@ export default async (request) => {
   }
 
   try {
-    const { businessNumber, accommodationName, phoneLastFour } = await request.json()
+    const { businessNumber, accommodationName, phoneLastFour, recordId } = await request.json()
 
     if (!businessNumber || !accommodationName || !phoneLastFour) {
       return jsonResponse({ error: '사업자 번호, 캠핑장 이름, 연락처 뒷자리를 모두 입력해주세요.' }, 400)
@@ -42,38 +48,54 @@ export default async (request) => {
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // cleanNumber는 숫자만 허용하므로 추가 이스케이프 불필요
-    const filterFormula = encodeURIComponent(
-      `AND({사업자 번호}='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
-    )
+    let matchedRecord
 
-    // CHANGED: 연락처 필드도 함께 조회하여 뒷자리 검증에 사용
-    const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent('연락처')
+    // CHANGED: recordId가 있으면 직접 조회 (중복 신청 시 정확한 레코드 보장)
+    if (recordId) {
+      const directUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}/${recordId}`
+      const directResponse = await fetch(directUrl, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      })
 
-    const airtableUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}` +
-      `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
+      if (!directResponse.ok) {
+        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+      }
 
-    const airtableResponse = await fetch(airtableUrl, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-    })
+      const directRecord = await directResponse.json()
 
-    if (!airtableResponse.ok) {
-      // CHANGED: S-4 - detail 필드 제거: Airtable 내부 오류 메시지를 클라이언트에 노출하지 않음
-      return jsonResponse(
-        { error: 'Airtable 조회 중 오류가 발생했습니다.' },
-        airtableResponse.status
+      // CHANGED: recordId로 조회한 레코드의 사업자번호가 입력값과 일치하는지 검증 (위변조 방지)
+      const storedBusinessNumber = (directRecord.fields['사업자 번호'] || '').replace(/[^0-9]/g, '')
+      if (storedBusinessNumber !== cleanNumber) {
+        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+      }
+
+      matchedRecord = directRecord
+    } else {
+      // CHANGED: recordId 없는 경우 기존 filterByFormula 방식 fallback
+      const filterFormula = encodeURIComponent(
+        `AND({사업자 번호}='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
       )
+      const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent('연락처')
+      const airtableUrl =
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}` +
+        `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
+
+      const airtableResponse = await fetch(airtableUrl, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      })
+
+      if (!airtableResponse.ok) {
+        return jsonResponse({ error: 'Airtable 조회 중 오류가 발생했습니다.' }, airtableResponse.status)
+      }
+
+      const { records } = await airtableResponse.json()
+
+      if (!records || records.length === 0) {
+        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+      }
+
+      matchedRecord = records[0]
     }
-
-    const { records } = await airtableResponse.json()
-
-    if (!records || records.length === 0) {
-      return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
-    }
-
-    const matchedRecord = records[0]
 
     // CHANGED: 연락처 뒷자리 4자리 검증
     const storedPhone = (matchedRecord.fields['연락처'] || '').replace(/[^0-9]/g, '')

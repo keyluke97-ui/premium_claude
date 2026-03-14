@@ -1,6 +1,6 @@
 // dashboard-modify.js - 미배정 슬롯의 등급 간 인원 변경 + 가격 재계산
 
-import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 - 오퍼 테이블 조회 불필요
+import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: Item 8 - Rate Limiting 추가
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -9,19 +9,19 @@ function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
 }
 
-/** 등급별 단가 (VAT 별도) */
-const UNIT_PRICES = {
+/** 등급별 기본 단가 (VAT 별도) — Airtable 필드에 값이 없을 때의 fallback */
+const DEFAULT_UNIT_PRICES = {
   icon: 300000,
   partner: 100000,
   rising: 50000,
 }
 
 /** VAT 포함 총액 계산 */
-function calculateTotal(crew) {
+function calculateTotal(crew, unitPrices) {
   const subtotal =
-    crew.icon * UNIT_PRICES.icon +
-    crew.partner * UNIT_PRICES.partner +
-    crew.rising * UNIT_PRICES.rising
+    crew.icon * unitPrices.icon +
+    crew.partner * unitPrices.partner +
+    crew.rising * unitPrices.rising
   return Math.round(subtotal * 1.1)
 }
 
@@ -32,6 +32,12 @@ export default async (request) => {
 
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405)
+  }
+
+  // CHANGED: Item 8 - Rate Limiting 검사
+  const rateCheck = checkRateLimit(request)
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds, CORS_HEADERS)
   }
 
   const API_KEY = process.env.AIRTABLE_API_KEY
@@ -76,6 +82,12 @@ export default async (request) => {
       return jsonResponse({ error: '모집 인원은 0 이상이어야 합니다.' }, 400)
     }
 
+    // CHANGED: Item 7 - 등급별 최대 인원 제한 (서버사이드 검증)
+    const MAX_CREW_PER_GRADE = 20
+    if (newCrew.icon > MAX_CREW_PER_GRADE || newCrew.partner > MAX_CREW_PER_GRADE || newCrew.rising > MAX_CREW_PER_GRADE) {
+      return jsonResponse({ error: `등급별 최대 모집 인원은 ${MAX_CREW_PER_GRADE}명입니다.` }, 400)
+    }
+
     // CHANGED: C-3 - 총 인원 0 허용 방지: 합계가 0이면 거부
     const totalNewCrew = newCrew.icon + newCrew.partner + newCrew.rising
     if (totalNewCrew === 0) {
@@ -100,6 +112,13 @@ export default async (request) => {
       icon: formFields['⭐️ 모집 희망 인원'] || 0,
       partner: formFields['✔️ 모집 인원'] || 0,
       rising: formFields['🔥 모집 인원'] || 0,
+    }
+
+    // CHANGED: Item 6 - Airtable 레코드의 단가 필드를 우선 사용, 없으면 기본값 fallback
+    const unitPrices = {
+      icon: formFields['아이콘 크리에이터 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.icon,
+      partner: formFields['파트너 크리에이터 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.partner,
+      rising: formFields['라이징 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.rising,
     }
 
     // CHANGED: 신청 가능 인원 수식 필드에서 배정 인원 역산
@@ -148,9 +167,9 @@ export default async (request) => {
       )
     }
 
-    // 4) 가격 재계산
-    const oldTotal = calculateTotal(currentCrew)
-    const newTotal = calculateTotal(newCrew)
+    // 4) 가격 재계산 — CHANGED: Item 6 - Airtable 단가 기반으로 계산
+    const oldTotal = calculateTotal(currentCrew, unitPrices)
+    const newTotal = calculateTotal(newCrew, unitPrices)
     const priceDifference = newTotal - oldTotal
 
     // 5) Airtable 모집 인원 필드 업데이트
@@ -159,9 +178,9 @@ export default async (request) => {
         '⭐️ 모집 희망 인원': newCrew.icon,
         '✔️ 모집 인원': newCrew.partner,
         '🔥 모집 인원': newCrew.rising,
-        '아이콘 크리에이터 협찬 제안 금액': UNIT_PRICES.icon,
-        '파트너 크리에이터 협찬 제안 금액': UNIT_PRICES.partner,
-        '라이징 협찬 제안 금액': UNIT_PRICES.rising,
+        '아이콘 크리에이터 협찬 제안 금액': unitPrices.icon, // CHANGED: Item 6 - Airtable 기존 단가 유지
+        '파트너 크리에이터 협찬 제안 금액': unitPrices.partner,
+        '라이징 협찬 제안 금액': unitPrices.rising,
       },
     }
 

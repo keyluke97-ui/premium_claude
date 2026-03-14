@@ -1,6 +1,6 @@
 // dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능)
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: M-1, Item 8 - 공통 유틸 import
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -16,6 +16,12 @@ export default async (request) => {
 
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405)
+  }
+
+  // CHANGED: Item 8 - Rate Limiting 검사
+  const rateCheck = checkRateLimit(request)
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds, CORS_HEADERS)
   }
 
   const API_KEY = process.env.AIRTABLE_API_KEY
@@ -95,6 +101,15 @@ export default async (request) => {
       return jsonResponse(
         { error: '모든 크리에이터가 배정 완료되어 환불이 불가능합니다.' },
         400
+      )
+    }
+
+    // CHANGED: 이미 환불 요청이 접수된 경우 중복 요청 차단
+    const existingRefundDate = formFields['환불 요청일']
+    if (existingRefundDate) {
+      return jsonResponse(
+        { error: '이미 환불 요청이 접수되어 있습니다. 담당자 확인 후 안내드리겠습니다.' },
+        409
       )
     }
 
