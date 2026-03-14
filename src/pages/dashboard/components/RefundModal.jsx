@@ -1,5 +1,5 @@
 // RefundModal.jsx - 환불 요청 모달
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { requestRefund } from '../../../utils/dashboardApi'
 
@@ -29,6 +29,7 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const submitLockRef = useRef(false) // CHANGED: 더블클릭 방지용 ref
 
   const hasAssignedCreators = totalAssigned > 0
   // CHANGED: 모든 필드(사유 + 계좌 정보) 입력 완료 시에만 제출 가능
@@ -40,13 +41,13 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
     !loading
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return
-
+    // CHANGED: submitLockRef로 더블클릭/중복 요청 방지
+    if (!canSubmit || submitLockRef.current) return
+    submitLockRef.current = true
     setLoading(true)
     setError('')
 
     try {
-      // CHANGED: requestRefund 호출 시 계좌 정보 객체 전달
       const response = await requestRefund({
         reason: reason.trim(),
         bankName,
@@ -59,6 +60,7 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
       setError(submitError.message || '환불 요청 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      submitLockRef.current = false
     }
   }, [canSubmit, reason, bankName, accountNumber, accountHolder, onSuccess])
 
