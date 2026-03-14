@@ -63,13 +63,13 @@ export async function lookupAccommodations(businessNumber) {
   return handleResponse(response)
 }
 
-/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리) */
-// CHANGED: phoneLastFour 파라미터 추가 - 3중 인증 적용
-export async function login(businessNumber, accommodationName, phoneLastFour) {
+/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리 + recordId) */
+// CHANGED: recordId 파라미터 추가 — 중복 신청 시 정확한 레코드로 인증
+export async function login(businessNumber, accommodationName, phoneLastFour, recordId) {
   const response = await fetch(`${API_BASE}/api/dashboard/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour }),
+    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour, recordId }),
   })
   const data = await handleResponse(response)
 

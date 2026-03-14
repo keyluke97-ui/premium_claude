@@ -1,15 +1,11 @@
 // LoginPage.jsx - 캠지기 대시보드 로그인 (사업자번호 + 캠핑장 선택 + 연락처 뒷자리 4자리)
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react' // CHANGED: Item 5 - useEffect 추가
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { lookupAccommodations, login, isAuthenticated } from '../../utils/dashboardApi'
-
-const BRAND_GREEN = '#01DF82'
-const BACKGROUND_COLOR = '#111111'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
+// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
+import { BRAND_GREEN, BACKGROUND_COLOR, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../constants/designTokens'
 
 /** 사업자번호 포맷: 000-00-00000 */
 function formatBusinessNumber(value) {
@@ -26,19 +22,20 @@ function extractDigits(formatted) {
 export default function LoginPage() {
   const navigate = useNavigate()
 
-  // 이미 인증된 상태라면 대시보드로 리다이렉트
-  if (isAuthenticated()) {
-    navigate('/dashboard', { replace: true })
-    return null
-  }
-
   const [step, setStep] = useState('input') // 'input' | 'select'
   const [businessNumber, setBusinessNumber] = useState('')
-  const [accommodations, setAccommodations] = useState([])
-  const [selectedAccommodation, setSelectedAccommodation] = useState('')
+  const [accommodations, setAccommodations] = useState([]) // CHANGED: { name, recordId } 객체 배열로 변경
+  const [selectedAccommodation, setSelectedAccommodation] = useState(null) // CHANGED: { name, recordId } 객체로 변경
   const [phoneLastFour, setPhoneLastFour] = useState('') // CHANGED: 연락처 뒷자리 4자리 state 추가
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // CHANGED: Item 5 - hooks 규칙 위반 수정: 조건부 return을 useEffect로 이동
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [navigate])
 
   /** 1단계: 사업자번호로 캠핑장 조회 */
   const handleLookup = useCallback(async () => {
@@ -59,15 +56,15 @@ export default function LoginPage() {
         return
       }
 
-      // CHANGED: lookup 응답의 { name, recordId } 객체에서 name만 추출
-      const accommodationNames = data.accommodations.map((item) =>
-        typeof item === 'string' ? item : item.name
+      // CHANGED: lookup 응답의 { name, recordId } 객체를 그대로 보존
+      const accommodationItems = data.accommodations.map((item) =>
+        typeof item === 'string' ? { name: item, recordId: null } : item
       )
-      setAccommodations(accommodationNames)
+      setAccommodations(accommodationItems)
 
       // CHANGED: 캠핑장이 1개여도 연락처 뒷자리 입력이 필요하므로 항상 Step 2로 이동
-      if (accommodationNames.length === 1) {
-        setSelectedAccommodation(accommodationNames[0])
+      if (accommodationItems.length === 1) {
+        setSelectedAccommodation(accommodationItems[0])
       }
       setStep('select')
     } catch (error) {
@@ -86,9 +83,8 @@ export default function LoginPage() {
 
       try {
         const cleanDigits = extractDigits(businessNumber)
-        const name = selectedAccommodation
 
-        if (!name) {
+        if (!selectedAccommodation) {
           setError('캠핑장을 선택해주세요.')
           return
         }
@@ -99,7 +95,8 @@ export default function LoginPage() {
           return
         }
 
-        await login(cleanDigits, name, cleanPhone)
+        // CHANGED: recordId를 함께 전달하여 정확한 레코드로 인증
+        await login(cleanDigits, selectedAccommodation.name, cleanPhone, selectedAccommodation.recordId)
         navigate('/dashboard', { replace: true })
       } catch (error) {
         setError(error.message)
@@ -115,7 +112,7 @@ export default function LoginPage() {
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !loading) {
       if (step === 'input') handleLookup()
-      else if (step === 'select' && selectedAccommodation && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
+      else if (step === 'select' && selectedAccommodation?.name && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
     }
   }
 
@@ -210,7 +207,7 @@ export default function LoginPage() {
                   <button
                     onClick={() => {
                       setStep('input')
-                      setSelectedAccommodation('')
+                      setSelectedAccommodation(null)
                       setPhoneLastFour('') // CHANGED: 뒤로가기 시 연락처 뒷자리도 초기화
                       setError('')
                     }}
@@ -227,26 +224,27 @@ export default function LoginPage() {
                 </div>
 
                 {/* CHANGED: 캠핑장 선택 (여러 개인 경우만 표시) */}
+                {/* CHANGED: 캠핑장 선택 — 객체 기반 비교로 recordId 보존 */}
                 {accommodations.length > 1 && (
                   <div className="space-y-2">
-                    {accommodations.map((name) => (
+                    {accommodations.map((item) => (
                       <button
-                        key={name}
+                        key={item.recordId || item.name}
                         onClick={() => {
-                          setSelectedAccommodation(name)
+                          setSelectedAccommodation(item)
                           setError('')
                         }}
                         className="w-full text-left px-4 py-3 rounded-xl text-sm transition-all"
                         style={{
                           backgroundColor:
-                            selectedAccommodation === name ? `${BRAND_GREEN}15` : '#252525',
+                            selectedAccommodation?.recordId === item.recordId ? `${BRAND_GREEN}15` : '#252525',
                           border: `1px solid ${
-                            selectedAccommodation === name ? BRAND_GREEN : BORDER_COLOR
+                            selectedAccommodation?.recordId === item.recordId ? BRAND_GREEN : BORDER_COLOR
                           }`,
-                          color: selectedAccommodation === name ? BRAND_GREEN : '#FFFFFF',
+                          color: selectedAccommodation?.recordId === item.recordId ? BRAND_GREEN : '#FFFFFF',
                         }}
                       >
-                        {name}
+                        {item.name}
                       </button>
                     ))}
                   </div>
@@ -262,7 +260,7 @@ export default function LoginPage() {
                       color: BRAND_GREEN,
                     }}
                   >
-                    {selectedAccommodation}
+                    {selectedAccommodation?.name}
                   </div>
                 )}
 
@@ -320,31 +318,24 @@ export default function LoginPage() {
             )}
           </AnimatePresence>
 
-          {/* 확인 버튼 */}
+          {/* CHANGED: 버튼 비활성 조건을 변수로 추출하여 3중 반복 제거 */}
+          {(() => {
+            const isButtonDisabled =
+              loading ||
+              (step === 'input' && extractDigits(businessNumber).length !== 10) ||
+              (step === 'select' && (!selectedAccommodation?.name || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
+
+            return (
           <button
             onClick={() => {
               if (step === 'input') handleLookup()
               else handleLogin()
             }}
-            disabled={
-              loading ||
-              (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-              (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-            }
+            disabled={isButtonDisabled}
             className="w-full mt-5 py-3.5 rounded-xl text-base font-semibold transition-all"
             style={{
-              backgroundColor:
-                loading ||
-                (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-                  ? '#333333'
-                  : BRAND_GREEN,
-              color:
-                loading ||
-                (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-                  ? TEXT_MUTED
-                  : '#000000',
+              backgroundColor: isButtonDisabled ? '#333333' : BRAND_GREEN,
+              color: isButtonDisabled ? TEXT_MUTED : '#000000',
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
@@ -362,6 +353,8 @@ export default function LoginPage() {
               '로그인'
             )}
           </button>
+            )
+          })()}
         </motion.div>
 
         {/* 하단 안내 */}

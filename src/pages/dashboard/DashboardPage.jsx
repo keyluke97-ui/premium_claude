@@ -202,6 +202,7 @@ function DashboardPage() {
   const [error, setError] = useState('')
   const [showModifyModal, setShowModifyModal] = useState(false)
   const [showRefundModal, setShowRefundModal] = useState(false)
+  const [inlineError, setInlineError] = useState('') // CHANGED: 모달 열기 실패 등 인라인 에러용
 
   /** 대시보드 데이터 로드 */
   const loadData = useCallback(async () => {
@@ -241,6 +242,49 @@ function DashboardPage() {
   const handleDataRefresh = useCallback(() => {
     loadData()
   }, [loadData])
+
+  // CHANGED: 인원 변경 모달 열기 전에 최신 데이터 re-fetch (Race Condition 방지)
+  const handleOpenModifyModal = useCallback(async () => {
+    setInlineError('')
+    try {
+      const freshData = await fetchDashboardData()
+      setDashboardData(freshData)
+
+      // CHANGED: 최신 데이터 기준으로 모집 완료 여부 재확인
+      if (freshData.isFullyRecruited) {
+        setInlineError('모집이 완료되어 인원 변경이 불가합니다.')
+        return
+      }
+      setShowModifyModal(true)
+    } catch (fetchError) {
+      if (fetchError.message.includes('인증이 만료')) {
+        navigate('/dashboard/login', { replace: true })
+        return
+      }
+      setInlineError('최신 데이터를 불러오지 못했습니다. 다시 시도해주세요.')
+    }
+  }, [navigate])
+
+  // CHANGED: 환불 모달도 열기 전 canRefund 재확인
+  const handleOpenRefundModal = useCallback(async () => {
+    setInlineError('')
+    try {
+      const freshData = await fetchDashboardData()
+      setDashboardData(freshData)
+
+      if (!freshData.canRefund) {
+        setInlineError('모집이 완료되어 환불이 불가합니다.')
+        return
+      }
+      setShowRefundModal(true)
+    } catch (fetchError) {
+      if (fetchError.message.includes('인증이 만료')) {
+        navigate('/dashboard/login', { replace: true })
+        return
+      }
+      setInlineError('최신 데이터를 불러오지 못했습니다. 다시 시도해주세요.')
+    }
+  }, [navigate])
 
   // 로딩 상태
   if (loading) {
@@ -295,11 +339,27 @@ function DashboardPage() {
         </div>
 
         {/* 액션 버튼 */}
+        {/* CHANGED: 인라인 에러 배너 (모달 열기 실패 시 표시) */}
+        {inlineError && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 rounded-xl px-4 py-3"
+            style={{
+              backgroundColor: 'rgba(255,68,68,0.1)',
+              border: '1px solid rgba(255,68,68,0.25)',
+            }}
+          >
+            <p className="text-sm" style={{ color: '#FF4444' }}>{inlineError}</p>
+          </motion.div>
+        )}
+
+        {/* CHANGED: 모달 열기 전 최신 데이터 re-fetch 핸들러로 교체 */}
         <ActionButtons
           canRefund={canRefund}
           isFullyRecruited={isFullyRecruited}
-          onModify={() => setShowModifyModal(true)}
-          onRefund={() => setShowRefundModal(true)}
+          onModify={handleOpenModifyModal}
+          onRefund={handleOpenRefundModal}
         />
       </div>
 
