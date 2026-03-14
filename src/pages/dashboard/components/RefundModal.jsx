@@ -2,16 +2,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { requestRefund } from '../../../utils/dashboardApi'
-
-const BRAND_GREEN = '#01DF82'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
-const OVERLAY_COLOR = 'rgba(0,0,0,0.7)'
-
-const DESTRUCTIVE_COLOR = '#FF6B6B'
-const WARNING_BACKGROUND = 'rgba(255,107,107,0.08)'
-const WARNING_BORDER = 'rgba(255,107,107,0.2)'
+// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
+import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED, OVERLAY_COLOR, DESTRUCTIVE_COLOR, WARNING_BACKGROUND, WARNING_BORDER } from '../../../constants/designTokens'
 
 // CHANGED: 환불 계좌 정보 입력 필드 추가 (은행, 계좌번호, 예금주명)
 const BANK_OPTIONS = [

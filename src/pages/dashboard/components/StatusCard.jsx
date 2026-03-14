@@ -1,11 +1,8 @@
 // StatusCard.jsx - 프리미엄 협찬 신청 상태 카드 (신청 정보 + 결제 요약)
 
 import { motion } from 'framer-motion'
-
-const BRAND_GREEN = '#01DF82'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
+// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
+import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../../constants/designTokens'
 
 /** 숫자를 한국 원화 포맷으로 변환 */
 function formatCurrency(value) {

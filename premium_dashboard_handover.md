@@ -141,11 +141,11 @@ premium_dashboard/
 **JWT payload 구조**:
 ```json
 {
-  "recordId": "recXXXXXXXX",          // Airtable 레코드 ID
+  "recordId": "recXXXXXXXX",
   "accommodationName": "캠핑장이름",
   "businessNumber": "1234567890",
   "iat": 1710000000,
-  "exp": 1710086400                    // +24시간
+  "exp": 1710086400
 }
 ```
 
@@ -200,7 +200,7 @@ premium_dashboard/
 - **파일**: `dashboard-refund.js`
 - **인증**: Bearer token 필수
 - **입력**: `{ reason: "환불 사유" }`
-- **동작**: 전체 모집 완료 전에만 환불 가능. Airtable에 환불 요청 기록.
+- **동작**: 전체 모��� 완료 전에만 환불 가능. Airtable에 환���� 요청 기록.
 - **출력**: `{ success: true, message: "...", refundNote: "...", totalRequested: 10, totalAssigned: 3 }`
 
 ---
@@ -368,7 +368,7 @@ netlify dev            # Vite dev server + Netlify Functions 에뮬레이션
 ### 완료된 수정 (✅)
 
 | ID | 분류 | 내용 | 수정 파일 |
-|----|------|------|----------|
+|----|------|------|-----------|
 | S-1 | 보안 | Airtable `filterByFormula` 인젝션 방지 — `sanitizeForFormula` 적용 | `jwt-utils.js`, `dashboard-auth.js`, `dashboard-data.js`, `dashboard-modify.js`, `dashboard-refund.js` |
 | S-2 | 보안 | CORS `*` 와일드카드 → `ALLOWED_ORIGIN` 환경변수 기반 `buildCorsHeaders` | 위 5개 함수 전체 |
 | S-4 | 보안 | 에러 응답에서 Airtable 내부 정보(`detail` 필드) 노출 제거 | 위 5개 함수 전체 |

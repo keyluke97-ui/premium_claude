@@ -1,11 +1,8 @@
 // RecruitmentProgress.jsx - 등급별 크리에이터 모집 진행률 카드
 
 import { motion } from 'framer-motion'
-
-const BRAND_GREEN = '#01DF82'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
+// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
+import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../../constants/designTokens'
 
 /** 등급 설정 */
 const GRADE_CONFIG = [

@@ -35,10 +35,14 @@ function calculateTotalWithVat(crewCounts, unitPrices) {
   return Math.round(subtotal * 1.1)
 }
 
+/** 등급별 최대 인원 제한 */
+const MAX_CREW_PER_GRADE = 20
+
 /** ±1 스테퍼 컴포넌트 */
-function Stepper({ value, minimum, onChange, disabled }) {
+// CHANGED: Item 7 - maximum prop 추가로 무제한 증가 방지
+function Stepper({ value, minimum, maximum = MAX_CREW_PER_GRADE, onChange, disabled }) {
   const canDecrease = value > minimum && !disabled
-  const canIncrease = !disabled
+  const canIncrease = value < maximum && !disabled
 
   return (
     <div className="flex items-center gap-2">
