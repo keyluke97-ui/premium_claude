@@ -1,24 +1,12 @@
 // dashboard-data.js - 대시보드 데이터 조회 (신청 상태 + 크리에이터 배정 현황)
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 (오퍼 테이블 쿼리 삭제)
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
-}
-
-/** 등급 숫자를 한글 라벨로 변환 */
-function gradeLabel(gradeNumber) {
-  const gradeMap = { 1: '아이콘', 2: '파트너', 3: '라이징' }
-  return gradeMap[gradeNumber] || `등급${gradeNumber}`
-}
-
-/** 등급 숫자를 이모지로 변환 */
-function gradeEmoji(gradeNumber) {
-  const emojiMap = { 1: '⭐️', 2: '✔️', 3: '🔥' }
-  return emojiMap[gradeNumber] || ''
 }
 
 export default async (request) => {
@@ -34,7 +22,6 @@ export default async (request) => {
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
-  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건'
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
@@ -54,22 +41,12 @@ export default async (request) => {
   const { recordId, accommodationName } = verification.payload
 
   try {
-    // CHANGED: P-1 - 순차 fetch → Promise.all 병렬 처리 (accommodationName은 JWT에서 확보되므로 독립 실행 가능)
+    // CHANGED: 캠지기 모집 폼 레코드 단건 조회 (배정 인원 카운트 필드 포함)
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // CHANGED: P-2 - maxRecords=200 추가 (무제한 조회 방지)
-    const offerFilter = encodeURIComponent(
-      `{캠핑장명}='${sanitizeForFormula(accommodationName)}'`
-    )
-    const offerUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&maxRecords=200`
-
-    const [formResponse, offerResponse] = await Promise.all([
-      fetch(formRecordUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-      fetch(offerUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-    ])
+    const formResponse = await fetch(formRecordUrl, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    })
 
     if (!formResponse.ok) {
       return jsonResponse({ error: '신청 정보를 찾을 수 없습니다.' }, 404)
@@ -104,37 +81,11 @@ export default async (request) => {
       notes: formFields['비고'] || '',
     }
 
-    // 배정된 크리에이터 현황 구성
-    let creators = []
-
-    if (offerResponse.ok) {
-      const offerData = await offerResponse.json()
-
-      creators = (offerData.records || []).map((record) => {
-        const fields = record.fields
-        const gradeNumber = fields['등급'] || 0
-
-        return {
-          offerId: record.id,
-          channelName: fields['채널명'] || '',
-          channelUrl: fields['채널 URL'] || '',
-          grade: gradeNumber,
-          gradeLabel: gradeLabel(gradeNumber),
-          gradeEmoji: gradeEmoji(gradeNumber),
-          checkInDate: fields['체크인 날짜'] || '',
-          site: fields['사이트'] || '',
-          status: fields['상태'] || '',
-          contentLink: fields['콘텐츠 링크'] || '',
-        }
-      })
-    }
-
-    // 모집 진행률 계산
-    const assignedByGrade = { icon: 0, partner: 0, rising: 0 }
-    for (const creator of creators) {
-      if (creator.grade === 1) assignedByGrade.icon++
-      else if (creator.grade === 2) assignedByGrade.partner++
-      else if (creator.grade === 3) assignedByGrade.rising++
+    // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
+    const assignedByGrade = {
+      icon: formFields['아이콘 크리에이터 신청 수'] || 0,
+      partner: formFields['파트너 크리에이터 신청 수'] || 0,
+      rising: formFields['라이징 크리에이터 신청 수'] || 0,
     }
 
     const recruitment = {
@@ -171,7 +122,7 @@ export default async (request) => {
       recruitment,
       totalRequested,
       totalAssigned,
-      creators,
+      creators: [], // CHANGED: 크리에이터 개별 목록은 추후 오퍼 테이블 필드명 매핑 후 구현
       canRefund,
       isFullyRecruited,
     })

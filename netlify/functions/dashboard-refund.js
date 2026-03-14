@@ -1,6 +1,6 @@
 // dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능)
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: M-1, Item 8 - 공통 유틸 import
+import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 (오퍼 테이블 쿼리 삭제)
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -28,7 +28,6 @@ export default async (request) => {
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
-  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건'
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
@@ -59,22 +58,12 @@ export default async (request) => {
       return jsonResponse({ error: '환불 계좌 정보(은행, 계좌번호, 예금주명)를 모두 입력해주세요.' }, 400)
     }
 
-    // CHANGED: P-1 - 순차 fetch → Promise.all 병렬 처리 (두 요청은 서로 독립적)
+    // CHANGED: 캠지기 모집 폼 레코드 단건 조회 (배정 인원 카운트 필드 포함)
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // CHANGED: P-2 - maxRecords=200 추가 (무제한 조회 방지)
-    const offerFilter = encodeURIComponent(
-      `{캠핑장명}='${sanitizeForFormula(accommodationName)}'`
-    )
-    const offerUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&maxRecords=200`
-
-    const [formResponse, offerResponse] = await Promise.all([
-      fetch(formRecordUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-      fetch(offerUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-    ])
+    const formResponse = await fetch(formRecordUrl, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    })
 
     if (!formResponse.ok) {
       return jsonResponse({ error: '신청 정보를 찾을 수 없습니다.' }, 404)
@@ -88,12 +77,11 @@ export default async (request) => {
       (formFields['✔️ 모집 인원'] || 0) +
       (formFields['🔥 모집 인원'] || 0)
 
-    // 2) 배정된 크리에이터 수 집계
-    let totalAssigned = 0
-    if (offerResponse.ok) {
-      const offerData = await offerResponse.json()
-      totalAssigned = (offerData.records || []).length
-    }
+    // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
+    const totalAssigned =
+      (formFields['아이콘 크리에이터 신청 수'] || 0) +
+      (formFields['파트너 크리에이터 신청 수'] || 0) +
+      (formFields['라이징 크리에이터 신청 수'] || 0)
 
     // 3) 환불 가능 여부 확인: 전체 모집 완료 전에만 가능
     const isFullyRecruited = totalAssigned >= totalRequested && totalRequested > 0
