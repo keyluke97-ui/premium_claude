@@ -1,4 +1,4 @@
-// LoginPage.jsx - 캠지기 대시보드 로그인 (사업자번호 + 캠핑장 선택)
+// LoginPage.jsx - 캠지기 대시보드 로그인 (사업자번호 + 캠핑장 선택 + 연락처 뒷자리 4자리)
 
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -36,6 +36,7 @@ export default function LoginPage() {
   const [businessNumber, setBusinessNumber] = useState('')
   const [accommodations, setAccommodations] = useState([])
   const [selectedAccommodation, setSelectedAccommodation] = useState('')
+  const [phoneLastFour, setPhoneLastFour] = useState('') // CHANGED: 연락처 뒷자리 4자리 state 추가
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,15 +59,17 @@ export default function LoginPage() {
         return
       }
 
-      setAccommodations(data.accommodations)
+      // CHANGED: lookup 응답의 { name, recordId } 객체에서 name만 추출
+      const accommodationNames = data.accommodations.map((item) =>
+        typeof item === 'string' ? item : item.name
+      )
+      setAccommodations(accommodationNames)
 
-      if (data.accommodations.length === 1) {
-        // CHANGED: 객체({name, recordId}) 대신 .name 문자열만 전달하여 auth API 매칭 오류 수정
-        await handleLogin(digits, data.accommodations[0].name)
-      } else {
-        // 여러 개면 선택 단계로
-        setStep('select')
+      // CHANGED: 캠핑장이 1개여도 연락처 뒷자리 입력이 필요하므로 항상 Step 2로 이동
+      if (accommodationNames.length === 1) {
+        setSelectedAccommodation(accommodationNames[0])
       }
+      setStep('select')
     } catch (error) {
       setError(error.message)
     } finally {
@@ -74,22 +77,29 @@ export default function LoginPage() {
     }
   }, [businessNumber])
 
-  /** 2단계: 캠핑장 선택 후 로그인 */
+  /** 2단계: 캠핑장 선택 + 연락처 뒷자리 입력 후 로그인 */
+  // CHANGED: phoneLastFour 검증 추가
   const handleLogin = useCallback(
-    async (digits, accommodationName) => {
+    async () => {
       setLoading(true)
       setError('')
 
       try {
-        const cleanDigits = digits || extractDigits(businessNumber)
-        const name = accommodationName || selectedAccommodation
+        const cleanDigits = extractDigits(businessNumber)
+        const name = selectedAccommodation
 
         if (!name) {
           setError('캠핑장을 선택해주세요.')
           return
         }
 
-        await login(cleanDigits, name)
+        const cleanPhone = phoneLastFour.replace(/[^0-9]/g, '')
+        if (cleanPhone.length !== 4) {
+          setError('연락처 뒷자리 4자리를 입력해주세요.')
+          return
+        }
+
+        await login(cleanDigits, name, cleanPhone)
         navigate('/dashboard', { replace: true })
       } catch (error) {
         setError(error.message)
@@ -97,14 +107,15 @@ export default function LoginPage() {
         setLoading(false)
       }
     },
-    [businessNumber, selectedAccommodation, navigate]
+    [businessNumber, selectedAccommodation, phoneLastFour, navigate]
   )
 
   /** Enter 키 처리 */
+  // CHANGED: Step 2 조건에 phoneLastFour 4자리 검증 추가
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !loading) {
       if (step === 'input') handleLookup()
-      else if (step === 'select' && selectedAccommodation) handleLogin()
+      else if (step === 'select' && selectedAccommodation && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
     }
   }
 
@@ -200,6 +211,7 @@ export default function LoginPage() {
                     onClick={() => {
                       setStep('input')
                       setSelectedAccommodation('')
+                      setPhoneLastFour('') // CHANGED: 뒤로가기 시 연락처 뒷자리도 초기화
                       setError('')
                     }}
                     className="mr-2 p-1 rounded-lg"
@@ -210,32 +222,84 @@ export default function LoginPage() {
                     </svg>
                   </button>
                   <span className="text-sm font-medium text-white">
-                    캠핑장 선택
+                    본인 확인
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  {/* CHANGED: 배열 요소가 객체({name, recordId})이므로 acc.name으로 접근 */}
-                  {accommodations.map((acc) => (
-                    <button
-                      key={acc.name}
-                      onClick={() => {
-                        setSelectedAccommodation(acc.name)
-                        setError('')
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-xl text-sm transition-all"
-                      style={{
-                        backgroundColor:
-                          selectedAccommodation === acc.name ? `${BRAND_GREEN}15` : '#252525',
-                        border: `1px solid ${
-                          selectedAccommodation === acc.name ? BRAND_GREEN : BORDER_COLOR
-                        }`,
-                        color: selectedAccommodation === acc.name ? BRAND_GREEN : '#FFFFFF',
-                      }}
-                    >
-                      {acc.name}
-                    </button>
-                  ))}
+                {/* CHANGED: 캠핑장 선택 (여러 개인 경우만 표시) */}
+                {accommodations.length > 1 && (
+                  <div className="space-y-2">
+                    {accommodations.map((name) => (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          setSelectedAccommodation(name)
+                          setError('')
+                        }}
+                        className="w-full text-left px-4 py-3 rounded-xl text-sm transition-all"
+                        style={{
+                          backgroundColor:
+                            selectedAccommodation === name ? `${BRAND_GREEN}15` : '#252525',
+                          border: `1px solid ${
+                            selectedAccommodation === name ? BRAND_GREEN : BORDER_COLOR
+                          }`,
+                          color: selectedAccommodation === name ? BRAND_GREEN : '#FFFFFF',
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* CHANGED: 캠핑장이 1개인 경우 선택된 캠핑장명 표시 */}
+                {accommodations.length === 1 && (
+                  <div
+                    className="px-4 py-3 rounded-xl text-sm mb-4"
+                    style={{
+                      backgroundColor: `${BRAND_GREEN}15`,
+                      border: `1px solid ${BRAND_GREEN}`,
+                      color: BRAND_GREEN,
+                    }}
+                  >
+                    {selectedAccommodation}
+                  </div>
+                )}
+
+                {/* CHANGED: 연락처 뒷자리 4자리 입력 필드 추가 */}
+                <div className={accommodations.length > 1 ? 'mt-4' : ''}>
+                  <label
+                    className="block text-sm font-medium text-white mb-2"
+                  >
+                    연락처 뒷자리 4자리
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="0000"
+                    value={phoneLastFour}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/[^0-9]/g, '').slice(0, 4)
+                      setPhoneLastFour(digits)
+                      setError('')
+                    }}
+                    onKeyDown={handleKeyDown}
+                    className="w-full px-4 py-3 rounded-xl text-white text-base"
+                    style={{
+                      backgroundColor: '#252525',
+                      border: `1px solid ${error ? '#FF4444' : BORDER_COLOR}`,
+                      transition: 'border-color 0.2s',
+                    }}
+                    autoFocus
+                    disabled={loading}
+                  />
+                  <p
+                    className="text-xs mt-2"
+                    style={{ color: TEXT_MUTED }}
+                  >
+                    프리미엄 협찬 신청 시 입력한 연락처의 뒷자리 4자리
+                  </p>
                 </div>
               </motion.div>
             )}
@@ -265,20 +329,20 @@ export default function LoginPage() {
             disabled={
               loading ||
               (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-              (step === 'select' && !selectedAccommodation)
+              (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
             }
             className="w-full mt-5 py-3.5 rounded-xl text-base font-semibold transition-all"
             style={{
               backgroundColor:
                 loading ||
                 (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && !selectedAccommodation)
+                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
                   ? '#333333'
                   : BRAND_GREEN,
               color:
                 loading ||
                 (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && !selectedAccommodation)
+                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
                   ? TEXT_MUTED
                   : '#000000',
               cursor: loading ? 'not-allowed' : 'pointer',
