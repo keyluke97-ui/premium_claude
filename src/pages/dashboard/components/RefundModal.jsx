@@ -49,6 +49,11 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
       setResult(response)
       if (onSuccess) onSuccess()
     } catch (submitError) {
+      // CHANGED: Item 9 - JWT 만료 시 모달 내에서 로그인 페이지로 리다이렉트
+      if (submitError.message?.includes('인증이 만료')) {
+        window.location.href = '/dashboard/login'
+        return
+      }
       setError(submitError.message || '환불 요청 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -148,12 +153,14 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
       onClick={onClose}
     >
       <motion.div
-        className="w-full rounded-t-2xl p-6 pb-8"
+        className="w-full rounded-t-2xl"
         style={{
           maxWidth: 448,
+          maxHeight: '85vh', // CHANGED: Item 10 - 모바일 키보드 가림 방지
           backgroundColor: CARD_BACKGROUND,
           border: `1px solid ${BORDER_COLOR}`,
           borderBottom: 'none',
+          overflowY: 'auto', // CHANGED: Item 10 - 내용이 길 때 스크롤 가능
         }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
@@ -161,6 +168,7 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="p-6 pb-8">
         <div className="flex justify-center mb-4">
           <div
             className="w-10 h-1 rounded-full"
@@ -284,8 +292,9 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
               </label>
               <input
                 type="text"
+                inputMode="numeric"
                 value={accountNumber}
-                onChange={(event) => setAccountNumber(event.target.value)}
+                onChange={(event) => setAccountNumber(event.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="'-' 없이 숫자만 입력"
                 className="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1"
                 style={{
@@ -356,6 +365,7 @@ export default function RefundModal({ totalRequested, totalAssigned, onClose, on
             '필수 항목을 모두 입력해주세요'
           )}
         </button>
+        </div>{/* CHANGED: Item 10 - p-6 pb-8 래핑 div 닫기 */}
       </motion.div>
     </motion.div>
   )

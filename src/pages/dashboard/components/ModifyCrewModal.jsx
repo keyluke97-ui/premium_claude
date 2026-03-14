@@ -261,6 +261,11 @@ export default function ModifyCrewModal({ application, recruitment, onClose, onS
       setResult(response)
       onSuccess()
     } catch (submitError) {
+      // CHANGED: Item 9 - JWT 만료 시 모달 내에서 로그인 페이지로 리다이렉트
+      if (submitError.message?.includes('인증이 만료')) {
+        window.location.href = '/dashboard/login'
+        return
+      }
       setError(submitError.message || '인원 변경 요청에 실패했습니다.')
     } finally {
       setLoading(false)

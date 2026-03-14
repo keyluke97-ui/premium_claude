@@ -96,7 +96,7 @@ export default function RecruitmentProgress({ recruitment, totalRequested, total
           <h2 className="text-base font-bold text-white">모집 현황</h2>
         </div>
 
-        {/* 전체 진행률 뱃지 */}
+        {/* 전체 진행률 뼉지 */}
         <div
           className="px-3 py-1 rounded-full text-xs font-medium"
           style={{

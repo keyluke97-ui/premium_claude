@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 // CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
 import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../../constants/designTokens'
 
-/** 등급 뱃지 색상 매핑 */
+/** 등급 뼉지 색상 매핑 */
 const GRADE_BADGE_COLORS = {
   1: { background: '#FFD70020', color: '#FFD700' },
   2: { background: `${BRAND_GREEN}20`, color: BRAND_GREEN },
@@ -42,7 +42,7 @@ function CreatorCard({ creator, index }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.05 }}
     >
-      {/* 상단: 채널명 + 등급 뱃지 */}
+      {/* 상단: 채널명 + 등급 뼉지 */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 min-w-0">
           {creator.channelUrl ? (
