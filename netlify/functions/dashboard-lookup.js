@@ -37,7 +37,9 @@ export default async (request) => {
 
     // Airtable에서 사업자 번호로 검색
     // cleanNumber는 숫자만 허용하므로 추가 이스케이프 불필요
-    const filterFormula = encodeURIComponent(`{사업자 번호}='${cleanNumber}'`)
+    // CHANGED: Airtable에 저장된 값이 '646-30-01063' 형식일 수 있으므로
+    //          SUBSTITUTE로 저장값의 하이픈도 제거 후 비교
+    const filterFormula = encodeURIComponent(`SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}'`)
     const fieldsQuery = [
       'fields%5B%5D=' + encodeURIComponent('숙소 이름을 적어주세요.'),
       'fields%5B%5D=' + encodeURIComponent('사업자 번호'),

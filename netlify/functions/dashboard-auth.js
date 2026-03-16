@@ -72,8 +72,9 @@ export default async (request) => {
       matchedRecord = directRecord
     } else {
       // CHANGED: recordId 없는 경우 기존 filterByFormula 방식 fallback
+      // CHANGED: SUBSTITUTE로 저장값의 하이픈도 제거 후 비교 (dashboard-lookup.js와 동일 처리)
       const filterFormula = encodeURIComponent(
-        `AND({사업자 번호}='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
+        `AND(SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
       )
       const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent('연락처')
       const airtableUrl =

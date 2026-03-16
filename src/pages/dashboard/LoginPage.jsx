@@ -364,7 +364,7 @@ export default function LoginPage() {
         >
           문의사항은{' '}
           <a
-            href="https://pf.kakao.com/_Cxfnxfxj"
+            href="http://pf.kakao.com/_fBxaQG/chat"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: BRAND_GREEN }}
