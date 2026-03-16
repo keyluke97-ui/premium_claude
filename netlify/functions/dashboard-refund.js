@@ -1,6 +1,37 @@
-// dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능)
+// dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능) + 통장사본 이미지 업로드
 
 import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 (오퍼 테이블 쿼리 삭제)
+
+// CHANGED: 통장사본 이미지를 Airtable attachment 필드에 업로드
+// Node.js 18 내장 FormData/Blob 사용 (외부 라이브러리 불필요)
+async function uploadBankStatement(apiKey, baseId, tableId, recordId, bankImageBase64) {
+  // base64 데이터 URI에서 MIME 타입 추출 및 순수 base64 분리
+  const mimeMatch = bankImageBase64.match(/^data:([^;]+);base64,/)
+  const mimeType = mimeMatch?.[1] || 'image/jpeg'
+  const rawExtension = mimeType.split('/')[1] || 'jpg'
+  const fileExtension = rawExtension === 'jpeg' ? 'jpg' : rawExtension
+  const rawBase64 = bankImageBase64.replace(/^data:[^;]+;base64,/, '')
+
+  const buffer = Buffer.from(rawBase64, 'base64')
+  const blob = new Blob([buffer], { type: mimeType })
+
+  const formData = new FormData()
+  // FormData.append(name, blob, filename) — Node.js 18 내장 지원
+  formData.append('file', blob, `bank_statement.${fileExtension}`)
+  formData.append('filename', `bank_statement.${fileExtension}`)
+
+  const uploadUrl =
+    `https://content.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}` +
+    `/${recordId}/${encodeURIComponent('통장사본')}/uploadAttachment`
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  })
+
+  return uploadResponse.ok
+}
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -47,8 +78,8 @@ export default async (request) => {
   const { recordId, accommodationName } = verification.payload
 
   try {
-    // CHANGED: 환불 요청 시 계좌 정보 필드 추가 수신
-    const { reason, bankName, accountNumber, accountHolder } = await request.json()
+    // CHANGED: 환불 요청 시 계좌 정보 + 통장사본 base64 수신
+    const { reason, bankName, accountNumber, accountHolder, bankImageBase64 } = await request.json()
 
     if (!reason || reason.trim().length === 0) {
       return jsonResponse({ error: '환불 사유를 입력해주세요.' }, 400)
@@ -133,12 +164,24 @@ export default async (request) => {
       return jsonResponse({ error: '환불 요청 저장에 실패했습니다.' }, 500)
     }
 
+    // CHANGED: 통장사본 이미지 업로드 (선택적 — 실패해도 환불 요청 자체는 성공 처리)
+    let imageUploaded = false
+    if (bankImageBase64) {
+      try {
+        imageUploaded = await uploadBankStatement(API_KEY, BASE_ID, FORM_TABLE, recordId, bankImageBase64)
+      } catch (uploadError) {
+        // 이미지 업로드 실패는 환불 요청 접수를 막지 않음
+        console.error('통장사본 업로드 실패:', uploadError.message)
+      }
+    }
+
     return jsonResponse({
       success: true,
       message: '환불 요청이 접수되었습니다. 담당자가 확인 후 연락드리겠습니다.',
       refundNote,
       totalRequested,
       totalAssigned,
+      imageUploaded,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)

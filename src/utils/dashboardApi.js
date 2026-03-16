@@ -89,23 +89,15 @@ export async function fetchDashboardData() {
   return handleResponse(response)
 }
 
-/** 인원 변경 요청 */
-export async function modifyCrew(newCrew) {
-  const response = await fetch(`${API_BASE}/api/dashboard/modify`, {
+/** 전액 환불 요청 (환불 사유 + 계좌 정보 + 통장사본 이미지) */
+// CHANGED: requestRefund 재추가 — 전액 환불은 폼 제출 방식으로 복원, bankImageBase64 추가
+export async function requestRefund({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }) {
+  const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ newCrew }),
+    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }),
   })
   return handleResponse(response)
 }
 
-/** 환불 요청 */
-// CHANGED: 환불 요청 시 계좌 정보(은행, 계좌번호, 예금주명) 추가 전송
-export async function requestRefund({ reason, bankName, accountNumber, accountHolder }) {
-  const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder }),
-  })
-  return handleResponse(response)
-}
+// CHANGED: modifyCrew 제거 유지 — 인원 변경은 카카오톡 상담으로 전환

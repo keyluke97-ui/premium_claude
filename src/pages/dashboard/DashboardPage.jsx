@@ -12,9 +12,9 @@ import {
 import StatusCard from './components/StatusCard'
 import RecruitmentProgress from './components/RecruitmentProgress'
 import CreatorList from './components/CreatorList'
-import ModifyCrewModal from './components/ModifyCrewModal' // CHANGED: Task 5c - 모달 import 추가
-import RefundModal from './components/RefundModal' // CHANGED: Task 5c - 모달 import 추가
-// CHANGED: M-2 - 인라인 토큰 제거, 공통 designTokens에서 import
+// CHANGED: KakaoGuideSheet 유지 (인원 변경) + RefundFlowModal 추가 (환불 전용)
+import KakaoGuideSheet from './components/KakaoGuideSheet'
+import RefundFlowModal from './components/RefundFlowModal'
 import { BRAND_GREEN, BACKGROUND_COLOR, TEXT_MUTED, BORDER_COLOR } from '../../constants/designTokens'
 
 // CHANGED: M-4 - 예기치 않은 렌더링 에러를 잡는 Error Boundary 추가
@@ -140,7 +140,37 @@ function DashboardHeader({ accommodationName, onLogout }) {
   )
 }
 
+// CHANGED: 입금 미확인 시 표시되는 배너 컴포넌트
+function PaymentPendingBanner() {
+  return (
+    <motion.div
+      className="rounded-xl px-4 py-3 mb-4 flex items-start gap-3"
+      style={{
+        backgroundColor: 'rgba(255,140,0,0.08)',
+        border: '1px solid rgba(255,140,0,0.25)',
+      }}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 mt-0.5">
+        <path
+          d="M12 9v4m0 4h.01M12 2L2 20h20L12 2z"
+          stroke="#FF8C00"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <p className="text-xs leading-relaxed" style={{ color: '#FF8C00' }}>
+        입금이 아직 확인되지 않았습니다. 아래 신청 정보 카드를 확인 후 입금해주세요.
+      </p>
+    </motion.div>
+  )
+}
+
 /** 하단 액션 버튼 영역 (인원 변경 + 환불 요청) */
+// CHANGED: ModifyCrewModal/RefundModal 대신 KakaoGuideSheet 핸들러 수신
 function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
   return (
     <motion.div
@@ -182,7 +212,7 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
       <p className="text-center text-xs pt-2" style={{ color: TEXT_MUTED }}>
         문의사항은{' '}
         <a
-          href="https://pf.kakao.com/_Cxfnxfxj"
+          href="http://pf.kakao.com/_fBxaQG/chat"
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: BRAND_GREEN }}
@@ -200,9 +230,9 @@ function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showModifyModal, setShowModifyModal] = useState(false)
-  const [showRefundModal, setShowRefundModal] = useState(false)
-  const [inlineError, setInlineError] = useState('') // CHANGED: 모달 열기 실패 등 인라인 에러용
+  // CHANGED: 인원 변경은 KakaoGuideSheet, 환불은 RefundFlowModal로 분리
+  const [kakaoGuideType, setKakaoGuideType] = useState(null) // 'modify' | null
+  const [showRefundModal, setShowRefundModal] = useState(false) // CHANGED: 환불 전용 모달 상태
 
   /** 대시보드 데이터 로드 */
   const loadData = useCallback(async () => {
@@ -212,18 +242,18 @@ function DashboardPage() {
     try {
       const data = await fetchDashboardData()
       setDashboardData(data)
-    } catch (error) {
-      if (error.message.includes('인증이 만료')) {
+    } catch (fetchError) {
+      if (fetchError.message.includes('인증이 만료')) {
         navigate('/dashboard/login', { replace: true })
         return
       }
-      setError(error.message)
+      setError(fetchError.message)
     } finally {
       setLoading(false)
     }
   }, [navigate])
 
-  // CHANGED: C-1 - 두 개의 useEffect를 하나로 통합 (인증 확인 → 데이터 로드 순서 보장, 레이스 컨디션 제거)
+  // CHANGED: C-1 - 두 개의 useEffect를 하나로 통합 (인증 확인 → 데이터 로드 순서 보장)
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate('/dashboard/login', { replace: true })
@@ -238,53 +268,23 @@ function DashboardPage() {
     navigate('/dashboard/login', { replace: true })
   }, [navigate])
 
-  /** 데이터 새로고침 (모달에서 변경 후 호출) */
-  const handleDataRefresh = useCallback(() => {
-    loadData()
-  }, [loadData])
+  // CHANGED: 인원 변경 → KakaoGuideSheet(modify) 오픈 (re-fetch 불필요, 카카오톡 상담으로 전환)
+  const handleOpenModify = useCallback(() => {
+    setKakaoGuideType('modify')
+  }, [])
 
-  // CHANGED: 인원 변경 모달 열기 전에 최신 데이터 re-fetch (Race Condition 방지)
-  const handleOpenModifyModal = useCallback(async () => {
-    setInlineError('')
-    try {
-      const freshData = await fetchDashboardData()
-      setDashboardData(freshData)
+  // CHANGED: 환불 요청 → RefundFlowModal 오픈 (전액/부분 분기 + 통장사본 업로드)
+  const handleOpenRefund = useCallback(() => {
+    setShowRefundModal(true)
+  }, [])
 
-      // CHANGED: 최신 데이터 기준으로 모집 완료 여부 재확인
-      if (freshData.isFullyRecruited) {
-        setInlineError('모집이 완료되어 인원 변경이 불가합니다.')
-        return
-      }
-      setShowModifyModal(true)
-    } catch (fetchError) {
-      if (fetchError.message.includes('인증이 만료')) {
-        navigate('/dashboard/login', { replace: true })
-        return
-      }
-      setInlineError('최신 데이터를 불러오지 못했습니다. 다시 시도해주세요.')
-    }
-  }, [navigate])
+  const handleCloseRefundModal = useCallback(() => {
+    setShowRefundModal(false)
+  }, [])
 
-  // CHANGED: 환불 모달도 열기 전 canRefund 재확인
-  const handleOpenRefundModal = useCallback(async () => {
-    setInlineError('')
-    try {
-      const freshData = await fetchDashboardData()
-      setDashboardData(freshData)
-
-      if (!freshData.canRefund) {
-        setInlineError('모집이 완료되어 환불이 불가합니다.')
-        return
-      }
-      setShowRefundModal(true)
-    } catch (fetchError) {
-      if (fetchError.message.includes('인증이 만료')) {
-        navigate('/dashboard/login', { replace: true })
-        return
-      }
-      setInlineError('최신 데이터를 불러오지 못했습니다. 다시 시도해주세요.')
-    }
-  }, [navigate])
+  const handleCloseKakaoGuide = useCallback(() => {
+    setKakaoGuideType(null)
+  }, [])
 
   // 로딩 상태
   if (loading) {
@@ -312,6 +312,8 @@ function DashboardPage() {
   } = dashboardData
 
   const accommodationName = getAccommodationName() || application?.accommodationName || '캠핑장'
+  // CHANGED: 입금 확인 여부를 application에서 추출
+  const paymentConfirmed = application?.paymentConfirmed === true
 
   return (
     <div className="min-h-screen pb-8" style={{ backgroundColor: BACKGROUND_COLOR }}>
@@ -322,9 +324,12 @@ function DashboardPage() {
           onLogout={handleLogout}
         />
 
+        {/* CHANGED: 입금 미확인 시 배너 표시 */}
+        {!paymentConfirmed && <PaymentPendingBanner />}
+
         {/* 카드 영역 */}
         <div className="space-y-4">
-          {/* 신청 정보 카드 */}
+          {/* 신청 정보 카드 (입금 상태에 따라 내부 표시 다름) */}
           <StatusCard application={application} />
 
           {/* 모집 현황 카드 */}
@@ -338,47 +343,34 @@ function DashboardPage() {
           <CreatorList creators={creators} />
         </div>
 
-        {/* 액션 버튼 */}
-        {/* CHANGED: 인라인 에러 배너 (모달 열기 실패 시 표시) */}
-        {inlineError && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-4 rounded-xl px-4 py-3"
-            style={{
-              backgroundColor: 'rgba(255,68,68,0.1)',
-              border: '1px solid rgba(255,68,68,0.25)',
-            }}
-          >
-            <p className="text-sm" style={{ color: '#FF4444' }}>{inlineError}</p>
-          </motion.div>
-        )}
-
-        {/* CHANGED: 모달 열기 전 최신 데이터 re-fetch 핸들러로 교체 */}
+        {/* CHANGED: ActionButtons — 카카오 가이드 핸들러로 교체 */}
         <ActionButtons
           canRefund={canRefund}
           isFullyRecruited={isFullyRecruited}
-          onModify={handleOpenModifyModal}
-          onRefund={handleOpenRefundModal}
+          onModify={handleOpenModify}
+          onRefund={handleOpenRefund}
         />
       </div>
 
-      {/* 모달 영역 */}
+      {/* CHANGED: KakaoGuideSheet — 인원 변경 전용 (type='modify'만 사용) */}
       <AnimatePresence>
-        {showModifyModal && (
-          <ModifyCrewModal
-            application={application}
-            recruitment={recruitment}
-            onClose={() => setShowModifyModal(false)}
-            onSuccess={handleDataRefresh}
+        {kakaoGuideType && (
+          <KakaoGuideSheet
+            type={kakaoGuideType}
+            accommodationName={accommodationName}
+            onClose={handleCloseKakaoGuide}
           />
         )}
+      </AnimatePresence>
+
+      {/* CHANGED: RefundFlowModal — 전액/부분 환불 분기 처리 */}
+      <AnimatePresence>
         {showRefundModal && (
-          <RefundModal
-            totalRequested={totalRequested}
+          <RefundFlowModal
+            recruitment={recruitment}
             totalAssigned={totalAssigned}
-            onClose={() => setShowRefundModal(false)}
-            onSuccess={handleDataRefresh}
+            accommodationName={accommodationName}
+            onClose={handleCloseRefundModal}
           />
         )}
       </AnimatePresence>
