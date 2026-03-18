@@ -1,4 +1,4 @@
-// KakaoGuideSheet.jsx - 인원 변경 요청 시 카카오톡 채널 상담 안내 바텀시트
+// KakaoGuideSheet.jsx - 등급·금액 변경 요청 시 카카오톡 채널 상담 안내 바텀시트
 
 import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
@@ -12,14 +12,19 @@ import {
 
 const KAKAO_LINK = 'http://pf.kakao.com/_fBxaQG/chat'
 
+// CHANGED: 안내 문구를 미모집 등급 변경 맥락에 맞게 재작성
 const GUIDE_CONTENT = {
   modify: {
-    title: '인원 변경 요청',
+    title: '등급·금액 변경 요청',
     description:
-      '인원 변경은 담당자와 카카오톡 상담을 통해 처리됩니다.\n아래 버튼을 눌러 상담을 시작해주세요.',
-    buttonLabel: '카카오톡으로 인원 변경 상담',
+      '모집되지 않은 등급의 협찬 금액을 상향하거나,\n다른 등급으로 전환을 요청하실 수 있습니다.\n\n담당자와 카카오톡 상담을 통해 처리됩니다.',
+    examples: [
+      '라이징 → 파트너 등급으로 전환',
+      '미모집 등급의 협찬 금액 상향',
+    ],
+    buttonLabel: '카카오톡으로 변경 상담',
     buildMessage: (accommodationName) =>
-      `[인원 변경 요청]\n캠핑장명: ${accommodationName}\n\n변경 희망 사항을 알려주세요.`,
+      `[등급·금액 변경 요청]\n캠핑장명: ${accommodationName}\n\n변경 희망 사항을 알려주세요.\n(예: 라이징 → 파트너 전환, 금액 상향 등)`,
   },
 }
 
@@ -98,7 +103,7 @@ export default function KakaoGuideSheet({ type, accommodationName, onClose }) {
 
           {/* 안내 문구 */}
           <div
-            className="rounded-xl p-4 mb-5"
+            className="rounded-xl p-4 mb-4"
             style={{
               backgroundColor: 'rgba(1,223,130,0.06)',
               border: '1px solid rgba(1,223,130,0.15)',
@@ -111,6 +116,25 @@ export default function KakaoGuideSheet({ type, accommodationName, onClose }) {
               {guide.description}
             </p>
           </div>
+
+          {/* CHANGED: 변경 예시 태그 */}
+          {guide.examples && (
+            <div className="flex flex-wrap gap-2 mb-5">
+              {guide.examples.map((example) => (
+                <span
+                  key={example}
+                  className="px-3 py-1.5 rounded-lg text-xs"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${BORDER_COLOR}`,
+                    color: TEXT_MUTED,
+                  }}
+                >
+                  {example}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* 캠핑장명 표시 */}
           <div

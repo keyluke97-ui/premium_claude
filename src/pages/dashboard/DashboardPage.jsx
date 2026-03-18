@@ -12,7 +12,6 @@ import {
 import StatusCard from './components/StatusCard'
 import RecruitmentProgress from './components/RecruitmentProgress'
 import CreatorList from './components/CreatorList'
-// CHANGED: KakaoGuideSheet 유지 (인원 변경) + RefundFlowModal 추가 (환불 전용)
 import KakaoGuideSheet from './components/KakaoGuideSheet'
 import RefundFlowModal from './components/RefundFlowModal'
 import { BRAND_GREEN, BACKGROUND_COLOR, TEXT_MUTED, BORDER_COLOR } from '../../constants/designTokens'
@@ -169,8 +168,8 @@ function PaymentPendingBanner() {
   )
 }
 
-/** 하단 액션 버튼 영역 (인원 변경 + 환불 요청) */
-// CHANGED: ModifyCrewModal/RefundModal 대신 KakaoGuideSheet 핸들러 수신
+// CHANGED: '인원 변경 요청' → '등급·금액 변경 요청' 문구 변경
+/** 하단 액션 버튼 영역 (등급·금액 변경 + 환불 요청) */
 function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
   return (
     <motion.div
@@ -179,7 +178,7 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.3 }}
     >
-      {/* 인원 변경 버튼 */}
+      {/* 등급·금액 변경 버튼 */}
       <button
         onClick={onModify}
         disabled={isFullyRecruited}
@@ -190,7 +189,7 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
           cursor: isFullyRecruited ? 'not-allowed' : 'pointer',
         }}
       >
-        {isFullyRecruited ? '모집 완료 — 변경 불가' : '인원 변경 요청'}
+        {isFullyRecruited ? '모집 완료 — 변경 불가' : '등급·금액 변경 요청'}
       </button>
 
       {/* 환불 요청 버튼 */}
@@ -230,9 +229,8 @@ function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  // CHANGED: 인원 변경은 KakaoGuideSheet, 환불은 RefundFlowModal로 분리
-  const [kakaoGuideType, setKakaoGuideType] = useState(null) // 'modify' | null
-  const [showRefundModal, setShowRefundModal] = useState(false) // CHANGED: 환불 전용 모달 상태
+  const [kakaoGuideType, setKakaoGuideType] = useState(null)
+  const [showRefundModal, setShowRefundModal] = useState(false)
 
   /** 대시보드 데이터 로드 */
   const loadData = useCallback(async () => {
@@ -253,7 +251,6 @@ function DashboardPage() {
     }
   }, [navigate])
 
-  // CHANGED: C-1 - 두 개의 useEffect를 하나로 통합 (인증 확인 → 데이터 로드 순서 보장)
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate('/dashboard/login', { replace: true })
@@ -268,12 +265,11 @@ function DashboardPage() {
     navigate('/dashboard/login', { replace: true })
   }, [navigate])
 
-  // CHANGED: 인원 변경 → KakaoGuideSheet(modify) 오픈 (re-fetch 불필요, 카카오톡 상담으로 전환)
+  // CHANGED: 등급·금액 변경 → KakaoGuideSheet(modify) 오픈
   const handleOpenModify = useCallback(() => {
     setKakaoGuideType('modify')
   }, [])
 
-  // CHANGED: 환불 요청 → RefundFlowModal 오픈 (전액/부분 분기 + 통장사본 업로드)
   const handleOpenRefund = useCallback(() => {
     setShowRefundModal(true)
   }, [])
@@ -312,7 +308,7 @@ function DashboardPage() {
   } = dashboardData
 
   const accommodationName = getAccommodationName() || application?.accommodationName || '캠핑장'
-  // CHANGED: 입금 확인 여부를 application에서 추출
+  // CHANGED: paymentConfirmed를 application에서 정확히 추출
   const paymentConfirmed = application?.paymentConfirmed === true
 
   return (
@@ -329,21 +325,17 @@ function DashboardPage() {
 
         {/* 카드 영역 */}
         <div className="space-y-4">
-          {/* 신청 정보 카드 (입금 상태에 따라 내부 표시 다름) */}
           <StatusCard application={application} />
 
-          {/* 모집 현황 카드 */}
           <RecruitmentProgress
             recruitment={recruitment}
             totalRequested={totalRequested}
             totalAssigned={totalAssigned}
           />
 
-          {/* 배정 크리에이터 목록 */}
           <CreatorList creators={creators} />
         </div>
 
-        {/* CHANGED: ActionButtons — 카카오 가이드 핸들러로 교체 */}
         <ActionButtons
           canRefund={canRefund}
           isFullyRecruited={isFullyRecruited}
@@ -352,7 +344,7 @@ function DashboardPage() {
         />
       </div>
 
-      {/* CHANGED: KakaoGuideSheet — 인원 변경 전용 (type='modify'만 사용) */}
+      {/* KakaoGuideSheet — 등급·금액 변경 전용 */}
       <AnimatePresence>
         {kakaoGuideType && (
           <KakaoGuideSheet
@@ -363,7 +355,7 @@ function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* CHANGED: RefundFlowModal — 전액/부분 환불 분기 처리 */}
+      {/* CHANGED: RefundFlowModal에 totalAssigned 전달 (전액 환불 비활성 판단용) */}
       <AnimatePresence>
         {showRefundModal && (
           <RefundFlowModal
@@ -378,7 +370,6 @@ function DashboardPage() {
   )
 }
 
-// CHANGED: M-4 - DashboardErrorBoundary로 감싼 래퍼를 default export
 export default function DashboardPageWithErrorBoundary(props) {
   return (
     <DashboardErrorBoundary>

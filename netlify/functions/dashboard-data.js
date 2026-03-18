@@ -1,9 +1,21 @@
 // dashboard-data.js - 대시보드 데이터 조회 (신청 상태 + 크리에이터 배정 현황)
 
-import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 (오퍼 테이블 쿼리 삭제)
+import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js'
 
-// CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
+
+// CHANGED: 등급 번호 → 라벨/이모지 매핑
+const GRADE_MAP = {
+  1: { label: '아이콘', emoji: '⭐️' },
+  2: { label: '파트너', emoji: '✔️' },
+  3: { label: '라이징', emoji: '🔥' },
+}
+
+// CHANGED: Airtable formula 내 특수문자 이스케이프
+function sanitizeForFormula(value) {
+  if (!value) return ''
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
@@ -22,13 +34,14 @@ export default async (request) => {
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
+  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건' // CHANGED: 오퍼 테이블 추가
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
   }
 
   // JWT 인증
-  const token = extractToken(request) // CHANGED: M-1 - 로컬 extractToken 제거, 공통 유틸 사용
+  const token = extractToken(request)
   if (!token) {
     return jsonResponse({ error: '인증 토큰이 필요합니다.' }, 401)
   }
@@ -41,7 +54,7 @@ export default async (request) => {
   const { recordId, accommodationName } = verification.payload
 
   try {
-    // CHANGED: 캠지기 모집 폼 레코드 단건 조회 (배정 인원 카운트 필드 포함)
+    // 캠지기 모집 폼 레코드 단건 조회
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
     const formResponse = await fetch(formRecordUrl, {
@@ -55,6 +68,9 @@ export default async (request) => {
     const formRecord = await formResponse.json()
     const formFields = formRecord.fields
 
+    // CHANGED: 입금 확인 체크박스 필드 읽기
+    const paymentConfirmed = formFields['입금내역 확인'] === true
+
     // 신청 상태 데이터 구성
     const applicationData = {
       accommodationName: formFields['숙소 이름을 적어주세요.'] || accommodationName,
@@ -64,6 +80,7 @@ export default async (request) => {
       representativeName: formFields['대표자명'] || '',
       phone: formFields['연락처'] || '',
       email: formFields['캠지기님 이메일'] || '',
+      paymentConfirmed, // CHANGED: 입금 확인 상태 포함
       crew: {
         icon: {
           requested: formFields['⭐️ 모집 희망 인원'] || 0,
@@ -81,7 +98,7 @@ export default async (request) => {
       notes: formFields['비고'] || '',
     }
 
-    // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
+    // 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음
     const assignedByGrade = {
       icon: formFields['아이콘 크리에이터 신청 수'] || 0,
       partner: formFields['파트너 크리에이터 신청 수'] || 0,
@@ -116,13 +133,55 @@ export default async (request) => {
     const isFullyRecruited = totalAssigned >= totalRequested && totalRequested > 0
     const canRefund = !isFullyRecruited
 
+    // CHANGED: 유료 오퍼 신청 건 테이블에서 배정 크리에이터 조회
+    let creators = []
+    try {
+      const safeName = sanitizeForFormula(applicationData.accommodationName)
+      const filterFormula = `AND(FIND("${safeName}", ARRAYJOIN({숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))})), {예약 취소/변경} != "취소")`
+      const offerUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}?filterByFormula=${encodeURIComponent(filterFormula)}&maxRecords=50`
+
+      const offerResponse = await fetch(offerUrl, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      })
+
+      if (offerResponse.ok) {
+        const offerData = await offerResponse.json()
+        creators = (offerData.records || []).map((record) => {
+          const fields = record.fields
+          // 등급화 lookup 필드에서 첫 번째 값 추출
+          const gradeRaw = fields['등급화 (from 크리에이터 채널명 (크리에이터 명단)) (from 크리에이터 채널명(프리미엄 협찬 신청)) 2']
+          const gradeNumber = Array.isArray(gradeRaw) ? gradeRaw[0] : gradeRaw
+          const gradeInfo = GRADE_MAP[gradeNumber] || { label: '미분류', emoji: '❓' }
+
+          // 채널 URL lookup 필드에서 첫 번째 값 추출
+          const channelUrlRaw = fields['채널 URL']
+          const channelUrl = Array.isArray(channelUrlRaw) ? channelUrlRaw[0] : (channelUrlRaw || '')
+
+          return {
+            offerId: record.id,
+            channelName: fields['크리에이터 채널명'] || '채널명 없음',
+            channelUrl,
+            grade: gradeNumber || 0,
+            gradeLabel: gradeInfo.label,
+            gradeEmoji: gradeInfo.emoji,
+            checkInDate: fields['입실일'] || '',
+            site: fields['입실 사이트'] || '',
+            contentLink: '',
+          }
+        })
+      }
+    } catch (offerError) {
+      // CHANGED: 오퍼 조회 실패 시에도 대시보드 데이터는 정상 반환
+      console.error('오퍼 조회 실패:', offerError.message)
+    }
+
     return jsonResponse({
       success: true,
       application: applicationData,
       recruitment,
       totalRequested,
       totalAssigned,
-      creators: [], // CHANGED: 크리에이터 개별 목록은 추후 오퍼 테이블 필드명 매핑 후 구현
+      creators,
       canRefund,
       isFullyRecruited,
     })
