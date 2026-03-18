@@ -51,8 +51,8 @@ export default async (req) => {
 
     // 고정 단가
     const ICON_PRICE = 300000
-    const PARTNER_PRICE = 100000
-    const RISING_PRICE = 50000
+    const PARTNER_PRICE = 150000 // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
+    const RISING_PRICE = 100000 // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
 
     const payload = {
       records: [
