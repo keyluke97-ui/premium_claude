@@ -19,7 +19,7 @@ const TIERS = [
   {
     stars: '⭐️⭐️',
     name: '파트너 크리에이터',
-    price: '10만원 / 1객실',
+    price: '15만원 / 1객실', // CHANGED: 10만원 → 15만원 (캠지기 제안 금액 상향)
     color: '#1975FF',
     bg: 'rgba(25,117,255,0.08)',
     border: 'rgba(25,117,255,0.2)',
@@ -33,7 +33,7 @@ const TIERS = [
   {
     stars: '⭐️',
     name: '라이징 크리에이터',
-    price: '5만원 / 1객실',
+    price: '10만원 / 1객실', // CHANGED: 5만원 → 10만원 (캠지기 제안 금액 상향)
     color: '#01DF82',
     bg: 'rgba(1,223,130,0.08)',
     border: 'rgba(1,223,130,0.2)',

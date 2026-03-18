@@ -12,8 +12,8 @@ function jsonResponse(body, status = 200) {
 /** 등급별 기본 단가 (VAT 별도) — Airtable 필드에 값이 없을 때의 fallback */
 const DEFAULT_UNIT_PRICES = {
   icon: 300000,
-  partner: 100000,
-  rising: 50000,
+  partner: 150000, // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
+  rising: 100000, // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
 }
 
 /** VAT 포함 총액 계산 */

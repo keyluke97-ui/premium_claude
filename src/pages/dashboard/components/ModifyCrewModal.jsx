@@ -197,8 +197,8 @@ export default function ModifyCrewModal({ application, recruitment, onClose, onS
   /** 단가 추출 */
   const unitPrices = useMemo(() => ({
     icon: application?.crew?.icon?.unitPrice || 300000,
-    partner: application?.crew?.partner?.unitPrice || 100000,
-    rising: application?.crew?.rising?.unitPrice || 50000,
+    partner: application?.crew?.partner?.unitPrice || 150000, // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
+    rising: application?.crew?.rising?.unitPrice || 100000, // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
   }), [application])
 
   /** 등급별 최소값 (이미 배정된 수) */
