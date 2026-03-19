@@ -1,9 +1,12 @@
 // CompleteStep.jsx - 신청 완료 페이지 (입금 안내 + 신청 요약)
-import { motion } from 'framer-motion'
-import { Check, Copy, CreditCard, Building2, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard } from 'lucide-react'
 import { useState } from 'react'
 // CHANGED: 하드코딩된 단가 제거 → packages.js의 calcCrewPriceWithVat로 통일
 import { calcCrewPriceWithVat } from '../../data/packages'
+
+// 대시보드 로그인 경로 (동일 도메인 내)
+const DASHBOARD_LOGIN_PATH = '/dashboard/login'
 
 function formatPrice(n) {
   return n.toLocaleString('ko-KR') + '원'
@@ -20,6 +23,8 @@ function SummaryRow({ label, value }) {
 
 export default function CompleteStep({ budget, plan, formData, crew }) {
   const [copied, setCopied] = useState(false)
+  // hasCopied: 복사 버튼 최초 클릭 후 true로 전환, 이후 리셋 없음 → 대시보드 링크 노출 트리거
+  const [hasCopied, setHasCopied] = useState(false)
   const accountNumber = '225-910068-71204'
 
   // CHANGED: 하드코딩 단가(PARTNER 100000, RISING 50000) 제거
@@ -34,6 +39,7 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
   const handleCopy = () => {
     const doCopy = () => {
       setCopied(true)
+      setHasCopied(true) // CHANGED: 최초 복사 시 대시보드 링크 노출
       setTimeout(() => setCopied(false), 2000)
     }
     // clipboard API 지원 시
@@ -173,6 +179,37 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
           {formData.region && <SummaryRow label="소재 권역" value={formData.region} />}
         </div>
       </motion.div>
+
+      {/* 대시보드 링크 — 계좌 복사 후 노출 */}
+      <AnimatePresence>
+        {hasCopied && (
+          <motion.a
+            href={DASHBOARD_LOGIN_PATH}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="w-full flex items-center justify-between px-5 py-4 rounded-2xl mt-4"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              textDecoration: 'none',
+              display: 'flex',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <LayoutDashboard size={16} style={{ color: '#01DF82', flexShrink: 0 }} />
+              <div className="text-left">
+                <div className="text-sm font-semibold text-white">신청 현황 확인하기</div>
+                <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  입금 완료 후 대시보드에서 진행 상황을 확인하세요
+                </div>
+              </div>
+            </div>
+            <span className="text-sm" style={{ color: 'rgba(255,255,255,0.25)', flexShrink: 0 }}>→</span>
+          </motion.a>
+        )}
+      </AnimatePresence>
 
       {/* 안내 메시지 */}
       <motion.p
