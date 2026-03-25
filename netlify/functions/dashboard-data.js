@@ -4,11 +4,11 @@ import { verifyToken, extractToken, buildCorsHeaders } from './jwt-utils.js'
 
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
 
-// CHANGED: 등급 번호 → 라벨/이모지 매핑
+// CHANGED: 등급화 매핑 기준 수정 (1=라이징🔥, 2=파트너✔️, 3=아이콘⭐️)
 const GRADE_MAP = {
-  1: { label: '아이콘', emoji: '⭐️' },
+  1: { label: '라이징', emoji: '🔥' },
   2: { label: '파트너', emoji: '✔️' },
-  3: { label: '라이징', emoji: '🔥' },
+  3: { label: '아이콘', emoji: '⭐️' },
 }
 
 // CHANGED: Airtable formula 내 특수문자 이스케이프
