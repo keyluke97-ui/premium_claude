@@ -54,7 +54,8 @@ const fields = [
   },
 ]
 
-const SITE_TYPES = ['오토캠핑', '글램핑', '카라반', '두가족존', '방갈로', '차박']
+// CHANGED: 이지캠핑, 펜션 추가 + 가나다순 정렬
+const SITE_TYPES = ['글램핑', '두가족존', '방갈로', '오토캠핑', '이지캠핑', '차박', '카라반', '펜션']
 
 export default function InfoStep({ data, onChange, errors }) {
   const selectedSiteTypes = data.siteTypes || []
