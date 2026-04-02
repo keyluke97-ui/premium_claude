@@ -232,7 +232,7 @@ export default function LoginPage() {
                       const isSelected = selectedAccommodation?.name === item.name
                       return (
                         <button
-                          key={item.name}
+                          key={item.types[0]?.recordId || item.name}
                           onClick={() => {
                             setSelectedAccommodation(item)
                             setError('')

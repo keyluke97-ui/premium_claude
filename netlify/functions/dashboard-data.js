@@ -1,19 +1,14 @@
 // dashboard-data.js - 대시보드 데이터 조회 (신청 상태 + 크리에이터 배정 현황)
 
 import { verifyToken, extractToken, buildCorsHeaders, sanitizeForFormula } from './jwt-utils.js' // CHANGED: sanitizeForFormula 복구 (크리에이터 목록 구현)
+// CHANGED: GRADE_INFO, MAX_RECORDS_OFFERS를 공통 상수 파일에서 import (중복 제거)
+import { GRADE_INFO, MAX_RECORDS_OFFERS } from './shared-constants.js'
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
 
 // 유료 오퍼 신청 건 테이블명
 const OFFER_TABLE = '유료 오퍼 신청 건'
-
-// 등급화 숫자 → 등급 정보 매핑 (3=아이콘⭐️, 2=파트너✔️, 1=라이징🔥)
-const GRADE_INFO = {
-  3: { emoji: '⭐️', label: '아이콘' },
-  2: { emoji: '✔️', label: '파트너' },
-  1: { emoji: '🔥', label: '라이징' },
-}
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
@@ -89,9 +84,9 @@ export default async (request) => {
     // CHANGED: 크리에이터 목록 구현 — 유료 오퍼 신청 건 조회 URL 구성
     // 필터: 숙소명 일치 AND 취소된 오퍼 제외
     const safeName = sanitizeForFormula(accommodationName)
-    // 숙소명 필드가 multipleLookupValues(배열)이므로 FIND+ARRAYJOIN으로 안전하게 매칭
+    // CHANGED: 구분자 래핑으로 부분 매칭 방지 (예: '숲속캠핑'이 '숲속캠핑장'에 오탐되지 않도록)
     const offerFilter = encodeURIComponent(
-      `AND(FIND('${safeName}',ARRAYJOIN({숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))})),{예약 취소/변경}!='취소')`
+      `AND(FIND('|||${safeName}|||','|||'&ARRAYJOIN({숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))},'|||')&'|||'),{예약 취소/변경}!='취소')`
     )
     const offerFieldsQuery = [
       '크리에이터 채널명',
@@ -103,7 +98,7 @@ export default async (request) => {
 
     const offerUrl =
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&${offerFieldsQuery}&maxRecords=100`
+      `?filterByFormula=${offerFilter}&${offerFieldsQuery}&maxRecords=${MAX_RECORDS_OFFERS}`
 
     // 두 테이블 병렬 조회
     const [formResponse, offerResponse] = await Promise.all([

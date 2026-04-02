@@ -1,15 +1,10 @@
 // dashboard-partner-data.js - 파트너 협찬 대시보드 데이터 조회 (캠페인 정보 + 매칭 크리에이터)
 
 import { verifyToken, extractToken, buildCorsHeaders, sanitizeForFormula } from './jwt-utils.js'
+// CHANGED: GRADE_INFO, MAX_RECORDS_OFFERS를 공통 상수 파일에서 import (중복 제거)
+import { GRADE_INFO, MAX_RECORDS_OFFERS } from './shared-constants.js'
 
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
-
-// 크리에이터 등급 숫자 → 등급 정보 매핑 (3=아이콘⭐️, 2=파트너✔️, 1=라이징🔥)
-const GRADE_INFO = {
-  3: { emoji: '⭐️', label: '아이콘' },
-  2: { emoji: '✔️', label: '파트너' },
-  1: { emoji: '🔥', label: '라이징' },
-}
 
 // 모집 상태 한글 라벨
 const RECRUITMENT_STATUS_LABELS = {
@@ -137,9 +132,9 @@ export default async (request) => {
     if (PARTNER_APPLICATION_TABLE) {
       // 캠페인 레코드 ID 기준으로 필터링
       const safeCampaignName = sanitizeForFormula(campaignData.accommodationName)
-      // CHANGED: 실제 필드명은 '캠핑장명 (from 캠페인)' (파트너 캠페인이 아님)
+      // CHANGED: 구분자 래핑으로 부분 매칭 방지 + 실제 필드명은 '캠핑장명 (from 캠페인)'
       const applicationFilter = encodeURIComponent(
-        `FIND('${safeCampaignName}', ARRAYJOIN({캠핑장명 (from 캠페인)}))`
+        `FIND('|||${safeCampaignName}|||','|||'&ARRAYJOIN({캠핑장명 (from 캠페인)},'|||')&'|||')`
       )
       const applicationFields = [
         '크리에이터 채널명 (from 크리에이터)',
@@ -153,7 +148,7 @@ export default async (request) => {
 
       const applicationUrl =
         `https://api.airtable.com/v0/${BASE_ID}/${PARTNER_APPLICATION_TABLE}` +
-        `?filterByFormula=${applicationFilter}&${applicationFields}&maxRecords=100`
+        `?filterByFormula=${applicationFilter}&${applicationFields}&maxRecords=${MAX_RECORDS_OFFERS}`
 
       try {
         const applicationResponse = await fetch(applicationUrl, {

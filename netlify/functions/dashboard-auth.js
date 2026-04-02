@@ -2,25 +2,13 @@
 // CHANGED: type 필드 추가 — 'premium' | 'partner' 분기로 해당 테이블에서 인증
 
 import { signToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js'
+// CHANGED: TABLE_CONFIG를 공통 상수 파일에서 import (중복 제거)
+import { TABLE_CONFIG } from './shared-constants.js'
 
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
-}
-
-// CHANGED: 테이블별 필드명 차이를 상수로 정의 (dashboard-lookup.js와 동일 구조)
-const TABLE_CONFIG = {
-  premium: {
-    businessNumberField: '사업자 번호',
-    accommodationNameField: '숙소 이름을 적어주세요.',
-    phoneField: '연락처',
-  },
-  partner: {
-    businessNumberField: '사업자번호',
-    accommodationNameField: '캠핑장명',
-    phoneField: '연락처',
-  },
 }
 
 /**
@@ -82,8 +70,11 @@ export default async (request) => {
       : [{ type: type === 'partner' ? 'partner' : 'premium', recordId }]
 
     // CHANGED: 연락처 검증 — typeEntries 중 하나라도 매칭되면 인증 성공
+    // [설계 의도] 같은 사업자번호의 캠핑장이므로, 프리미엄 또는 파트너 중
+    // 하나의 연락처만 매칭되면 전체 타입에 대한 인증을 통과시킴
+    // (운영자가 다를 수 있으나 같은 사업체로 판단)
     let phoneVerified = false
-    const verifiedRecordIds = {} // { premium: 'recXXX', partner: 'recYYY' }
+    const candidateRecordIds = {} // 연락처 검증 전 임시 저장
 
     for (const entry of typeEntries) {
       const entryType = entry.type === 'partner' ? 'partner' : 'premium'
@@ -109,8 +100,9 @@ export default async (request) => {
           if (storedBusinessNumber !== cleanNumber) continue
         } else {
           // filterByFormula fallback
+          // CHANGED: cleanNumber도 sanitizeForFormula 적용 (방어적 코딩)
           const filterFormula = encodeURIComponent(
-            `AND(SUBSTITUTE({${config.businessNumberField}}, '-', '')='${cleanNumber}', {${config.accommodationNameField}}='${sanitizeForFormula(accommodationName)}')`
+            `AND(SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}', {${config.accommodationNameField}}='${sanitizeForFormula(accommodationName)}')`
           )
           const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent(config.phoneField)
           const airtableUrl =
@@ -125,8 +117,8 @@ export default async (request) => {
           record = records[0]
         }
 
-        // recordId 기록 (연락처 검증 전에 저장 — 검증은 한 번만 통과하면 됨)
-        verifiedRecordIds[entryType] = record.id
+        // CHANGED: recordId를 임시 Map에 저장 (연락처 검증 전)
+        candidateRecordIds[entryType] = record.id
 
         // 연락처 검증 (아직 미검증 시에만)
         if (!phoneVerified) {
@@ -145,6 +137,9 @@ export default async (request) => {
     if (!phoneVerified) {
       return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
     }
+
+    // CHANGED: 연락처 검증 통과 후에만 recordId 확정
+    const verifiedRecordIds = { ...candidateRecordIds }
 
     // CHANGED: JWT payload에 타입별 recordId + availableTypes 포함
     const availableTypes = Object.keys(verifiedRecordIds)

@@ -17,12 +17,14 @@ function formatCurrency(value) {
 }
 
 /** 날짜 포맷 (YYYY-MM-DD → MM/DD) */
+// CHANGED: KST timezone 명시로 UTC 파싱 시 하루 밀림 방지
 function formatDate(dateString) {
   if (!dateString) return '-'
-  const date = new Date(dateString)
-  if (isNaN(date.getTime())) return dateString
-  const month = date.getMonth() + 1
-  const day = date.getDate()
+  const parts = dateString.split('-')
+  if (parts.length !== 3) return dateString
+  const month = parseInt(parts[1], 10)
+  const day = parseInt(parts[2], 10)
+  if (isNaN(month) || isNaN(day)) return dateString
   return `${month}/${day}`
 }
 

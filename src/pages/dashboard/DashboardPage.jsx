@@ -277,8 +277,8 @@ function DashboardPage() {
   const [kakaoGuideType, setKakaoGuideType] = useState(null)
   const [showRefundModal, setShowRefundModal] = useState(false)
 
-  // CHANGED: sessionStorage에서 사용 가능한 타입 목록 조회
-  const availableTypes = getAvailableTypes()
+  // CHANGED: sessionStorage에서 사용 가능한 타입 목록 1회만 파싱 (매 렌더 JSON.parse 방지)
+  const [availableTypes] = useState(() => getAvailableTypes())
 
   // CHANGED: 현재 활성 탭 — URL ?tab= 파라미터 기반, 없으면 availableTypes 첫 번째
   const tabParam = searchParams.get('tab')
@@ -289,8 +289,7 @@ function DashboardPage() {
   /** CHANGED: 탭 전환 핸들러 — URL 쿼리파라미터 업데이트 */
   const handleTabChange = useCallback((newTab) => {
     setSearchParams({ tab: newTab }, { replace: true })
-    // 탭 전환 시 기존 데이터 초기화하여 로딩 표시
-    setDashboardData(null)
+    // CHANGED: setDashboardData(null) 제거 — loadData 내 setLoading(true)로 충분, null 세팅 시 ErrorDisplay flash 유발
   }, [setSearchParams])
 
   /** 대시보드 데이터 로드 — activeTab에 따라 다른 API 호출 */

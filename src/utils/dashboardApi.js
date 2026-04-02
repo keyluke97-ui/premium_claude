@@ -17,6 +17,8 @@ export function saveAuth(token, accommodationName, availableTypes) {
   if (Array.isArray(availableTypes) && availableTypes.length > 0) {
     sessionStorage.setItem(AVAILABLE_TYPES_KEY, JSON.stringify(availableTypes))
   }
+  // CHANGED: 레거시 키 명시적 정리 (혼재 세션 방지)
+  sessionStorage.removeItem('camjigi_dashboard_type')
 }
 
 export function getToken() {

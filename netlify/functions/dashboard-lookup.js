@@ -1,25 +1,13 @@
 // dashboard-lookup.js - 사업자번호로 프리미엄+파트너 테이블 병렬 검색, 캠핑장 목록 반환
 
-import { buildCorsHeaders } from './jwt-utils.js'
+import { buildCorsHeaders, sanitizeForFormula } from './jwt-utils.js'
+// CHANGED: TABLE_CONFIG, MAX_RECORDS_LOOKUP를 공통 상수 파일에서 import (중복 제거)
+import { TABLE_CONFIG, MAX_RECORDS_LOOKUP } from './shared-constants.js'
 
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
-}
-
-// CHANGED: 테이블별 필드명 차이를 상수로 정의
-const TABLE_CONFIG = {
-  premium: {
-    businessNumberField: '사업자 번호',
-    accommodationNameField: '숙소 이름을 적어주세요.',
-    label: '프리미엄 협찬',
-  },
-  partner: {
-    businessNumberField: '사업자번호',
-    accommodationNameField: '캠핑장명',
-    label: '파트너 협찬',
-  },
 }
 
 /**
@@ -35,7 +23,7 @@ const TABLE_CONFIG = {
 async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey, baseId, type) {
   // CHANGED: 프리미엄은 SUBSTITUTE 필요 (하이픈 형식 저장), 파트너는 하이픈 없이 저장될 수 있음
   const filterFormula = encodeURIComponent(
-    `SUBSTITUTE({${config.businessNumberField}}, '-', '')='${cleanNumber}'`
+    `SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}'`
   )
   const fieldsQuery = [
     'fields%5B%5D=' + encodeURIComponent(config.accommodationNameField),
@@ -44,7 +32,7 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
 
   const airtableUrl =
     `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}` +
-    `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=50`
+    `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=${MAX_RECORDS_LOOKUP}`
 
   try {
     const response = await fetch(airtableUrl, {

@@ -24,14 +24,18 @@ const CHANNEL_TYPE_LABELS = {
 }
 
 /** 날짜 포맷: YYYY-MM-DD → MM/DD(요일), 없으면 null */
+// CHANGED: KST timezone 명시로 UTC 파싱 시 하루 밀림 방지
 function formatDate(dateString) {
   if (!dateString) return null
   try {
-    const date = new Date(dateString)
+    const parts = dateString.split('-')
+    if (parts.length !== 3) return dateString
+    const month = parseInt(parts[1], 10)
+    const day = parseInt(parts[2], 10)
+    // KST(+09:00) 명시하여 timezone 이슈 방지
+    const date = new Date(dateString + 'T00:00:00+09:00')
     if (isNaN(date.getTime())) return dateString
     const dayNames = ['일', '월', '화', '수', '목', '금', '토']
-    const month = date.getMonth() + 1
-    const day = date.getDate()
     const dayOfWeek = dayNames[date.getDay()]
     return `${month}/${day}(${dayOfWeek})`
   } catch {

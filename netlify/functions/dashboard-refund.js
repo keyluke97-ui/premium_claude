@@ -75,7 +75,9 @@ export default async (request) => {
     return jsonResponse({ error: verification.error }, 401)
   }
 
-  const { recordId, accommodationName } = verification.payload
+  // CHANGED: JWT 구조 변경 대응 — premiumRecordId 우선, 하위 호환으로 recordId도 지원
+  const { premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
+  const recordId = premiumRecordId || legacyRecordId
 
   try {
     // CHANGED: 환불 요청 시 계좌 정보 + 통장사본 base64 수신
