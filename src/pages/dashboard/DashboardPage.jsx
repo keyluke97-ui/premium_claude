@@ -1,11 +1,14 @@
-// DashboardPage.jsx - 캠지기 대시보드 메인 페이지 (신청 현황 + 모집 진행률 + 크리에이터 목록)
+// DashboardPage.jsx - 캠지기 대시보드 메인 페이지 (프리미엄/파트너 탭 전환 지원)
+// CHANGED: 탭 전환 UI 추가 — ?tab=partner 쿼리파라미터로 상태 관리
 
 import { Component, useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   fetchDashboardData,
+  fetchPartnerData,
   getAccommodationName,
+  getAvailableTypes, // CHANGED: getDashboardType 대신 getAvailableTypes 사용
   isAuthenticated,
   clearAuth,
 } from '../../utils/dashboardApi'
@@ -14,9 +17,17 @@ import RecruitmentProgress from './components/RecruitmentProgress'
 import CreatorList from './components/CreatorList'
 import KakaoGuideSheet from './components/KakaoGuideSheet'
 import RefundFlowModal from './components/RefundFlowModal'
+import PartnerStatusCard from './components/PartnerStatusCard'
+import PartnerCreatorList from './components/PartnerCreatorList'
+import PartnerActionButtons from './components/PartnerActionButtons'
 import { BRAND_GREEN, BACKGROUND_COLOR, TEXT_MUTED, BORDER_COLOR } from '../../constants/designTokens'
 
-// CHANGED: M-4 - 예기치 않은 렌더링 에러를 잡는 Error Boundary 추가
+// CHANGED: 탭 라벨 설정
+const TAB_CONFIG = {
+  premium: { label: '프리미엄 협찬' },
+  partner: { label: '캠핏 파트너' },
+}
+
 class DashboardErrorBoundary extends Component {
   constructor(props) {
     super(props)
@@ -38,7 +49,7 @@ class DashboardErrorBoundary extends Component {
           <p className="text-xs mb-6" style={{ color: TEXT_MUTED }}>{this.state.errorMessage}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded-xl text-sm font-medium"
+            className="px-6 py-3 rounded-xl text-sm font-medium min-h-[44px]"
             style={{ backgroundColor: BRAND_GREEN, color: '#000000' }}
           >
             페이지 새로고침
@@ -97,7 +108,7 @@ function ErrorDisplay({ message, onRetry }) {
         <p className="text-xs mb-6" style={{ color: TEXT_MUTED }}>{message}</p>
         <button
           onClick={onRetry}
-          className="px-6 py-2.5 rounded-xl text-sm font-medium"
+          className="px-6 py-3 rounded-xl text-sm font-medium min-h-[44px]"
           style={{ backgroundColor: BRAND_GREEN, color: '#000000' }}
         >
           다시 시도
@@ -107,17 +118,52 @@ function ErrorDisplay({ message, onRetry }) {
   )
 }
 
-/** 대시보드 헤더 (캠핑장 이름 + 로그아웃) */
-function DashboardHeader({ accommodationName, onLogout }) {
+/** CHANGED: 프리미엄/파트너 탭 전환 UI — availableTypes가 2개 이상일 때만 렌더링 */
+function DashboardTabs({ availableTypes, activeTab, onTabChange }) {
+  if (availableTypes.length < 2) return null
+
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div
+      className="flex rounded-xl p-1 mb-5"
+      style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+    >
+      {availableTypes.map((tabType) => {
+        const isActive = activeTab === tabType
+        const tabLabel = TAB_CONFIG[tabType]?.label || tabType
+        return (
+          <button
+            key={tabType}
+            onClick={() => onTabChange(tabType)}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[40px]"
+            style={{
+              backgroundColor: isActive ? BRAND_GREEN : 'transparent',
+              color: isActive ? '#000000' : TEXT_MUTED,
+            }}
+          >
+            {tabLabel}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 대시보드 헤더 (캠핑장 이름 + 로그아웃) */
+function DashboardHeader({ accommodationName, onLogout, activeTab, availableTypes }) {
+  // CHANGED: 탭이 1개면 서브타이틀 표시, 2개면 탭 UI로 대체하므로 서브타이틀 간소화
+  const subtitle = availableTypes.length < 2
+    ? (activeTab === 'partner' ? '파트너 협찬 대시보드' : '프리미엄 협찬 대시보드')
+    : '협찬 대시보드'
+
+  return (
+    <div className="flex items-center justify-between mb-4">
       <div className="flex-1 min-w-0">
         <h1 className="text-lg font-bold text-white truncate">{accommodationName}</h1>
-        <p className="text-xs" style={{ color: TEXT_MUTED }}>프리미엄 협찬 대시보드</p>
+        <p className="text-xs" style={{ color: TEXT_MUTED }}>{subtitle}</p>
       </div>
       <button
         onClick={onLogout}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
+        className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-medium shrink-0 min-h-[44px]"
         style={{
           backgroundColor: 'rgba(255,255,255,0.06)',
           color: TEXT_MUTED,
@@ -139,7 +185,7 @@ function DashboardHeader({ accommodationName, onLogout }) {
   )
 }
 
-// CHANGED: 입금 미확인 시 표시되는 배너 컴포넌트
+/** 입금 미확인 배너 (프리미엄 전용) */
 function PaymentPendingBanner() {
   return (
     <motion.div
@@ -168,8 +214,7 @@ function PaymentPendingBanner() {
   )
 }
 
-// CHANGED: '인원 변경 요청' → '등급·금액 변경 요청' 문구 변경
-/** 하단 액션 버튼 영역 (등급·금액 변경 + 환불 요청) */
+/** 하단 액션 버튼 영역 (프리미엄 전용: 인원 변경 + 환불 요청) */
 function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
   return (
     <motion.div
@@ -178,7 +223,6 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.3 }}
     >
-      {/* 등급·금액 변경 버튼 */}
       <button
         onClick={onModify}
         disabled={isFullyRecruited}
@@ -189,10 +233,9 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
           cursor: isFullyRecruited ? 'not-allowed' : 'pointer',
         }}
       >
-        {isFullyRecruited ? '모집 완료 — 변경 불가' : '등급·금액 변경 요청'}
+        {isFullyRecruited ? '모집 완료 — 변경 불가' : '인원 변경 요청'}
       </button>
 
-      {/* 환불 요청 버튼 */}
       {canRefund && (
         <button
           onClick={onRefund}
@@ -207,7 +250,6 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
         </button>
       )}
 
-      {/* 하단 안내 */}
       <p className="text-center text-xs pt-2" style={{ color: TEXT_MUTED }}>
         문의사항은{' '}
         <a
@@ -226,19 +268,40 @@ function ActionButtons({ canRefund, isFullyRecruited, onModify, onRefund }) {
 
 function DashboardPage() {
   const navigate = useNavigate()
+  // CHANGED: useSearchParams로 ?tab= 쿼리파라미터 관리
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [kakaoGuideType, setKakaoGuideType] = useState(null)
   const [showRefundModal, setShowRefundModal] = useState(false)
 
-  /** 대시보드 데이터 로드 */
+  // CHANGED: sessionStorage에서 사용 가능한 타입 목록 조회
+  const availableTypes = getAvailableTypes()
+
+  // CHANGED: 현재 활성 탭 — URL ?tab= 파라미터 기반, 없으면 availableTypes 첫 번째
+  const tabParam = searchParams.get('tab')
+  const activeTab = (tabParam && availableTypes.includes(tabParam))
+    ? tabParam
+    : availableTypes[0] || 'premium'
+
+  /** CHANGED: 탭 전환 핸들러 — URL 쿼리파라미터 업데이트 */
+  const handleTabChange = useCallback((newTab) => {
+    setSearchParams({ tab: newTab }, { replace: true })
+    // 탭 전환 시 기존 데이터 초기화하여 로딩 표시
+    setDashboardData(null)
+  }, [setSearchParams])
+
+  /** 대시보드 데이터 로드 — activeTab에 따라 다른 API 호출 */
   const loadData = useCallback(async () => {
     setLoading(true)
     setError('')
 
     try {
-      const data = await fetchDashboardData()
+      const data = activeTab === 'partner'
+        ? await fetchPartnerData()
+        : await fetchDashboardData()
       setDashboardData(data)
     } catch (fetchError) {
       if (fetchError.message.includes('인증이 만료')) {
@@ -249,8 +312,9 @@ function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [navigate])
+  }, [navigate, activeTab])
 
+  // 인증 확인 + 데이터 로드
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate('/dashboard/login', { replace: true })
@@ -265,7 +329,6 @@ function DashboardPage() {
     navigate('/dashboard/login', { replace: true })
   }, [navigate])
 
-  // CHANGED: 등급·금액 변경 → KakaoGuideSheet(modify) 오픈
   const handleOpenModify = useCallback(() => {
     setKakaoGuideType('modify')
   }, [])
@@ -297,19 +360,10 @@ function DashboardPage() {
     return <ErrorDisplay message="대시보드 데이터가 없습니다." onRetry={loadData} />
   }
 
-  const {
-    application,
-    recruitment,
-    totalRequested,
-    totalAssigned,
-    creators,
-    canRefund,
-    isFullyRecruited,
-  } = dashboardData
-
-  const accommodationName = getAccommodationName() || application?.accommodationName || '캠핑장'
-  // CHANGED: paymentConfirmed를 application에서 정확히 추출
-  const paymentConfirmed = application?.paymentConfirmed === true
+  const accommodationName = getAccommodationName()
+    || dashboardData?.application?.accommodationName
+    || dashboardData?.campaign?.accommodationName
+    || '캠핑장'
 
   return (
     <div className="min-h-screen pb-8" style={{ backgroundColor: BACKGROUND_COLOR }}>
@@ -318,33 +372,51 @@ function DashboardPage() {
         <DashboardHeader
           accommodationName={accommodationName}
           onLogout={handleLogout}
+          activeTab={activeTab}
+          availableTypes={availableTypes}
         />
 
-        {/* CHANGED: 입금 미확인 시 배너 표시 */}
-        {!paymentConfirmed && <PaymentPendingBanner />}
-
-        {/* 카드 영역 */}
-        <div className="space-y-4">
-          <StatusCard application={application} />
-
-          <RecruitmentProgress
-            recruitment={recruitment}
-            totalRequested={totalRequested}
-            totalAssigned={totalAssigned}
-          />
-
-          <CreatorList creators={creators} />
-        </div>
-
-        <ActionButtons
-          canRefund={canRefund}
-          isFullyRecruited={isFullyRecruited}
-          onModify={handleOpenModify}
-          onRefund={handleOpenRefund}
+        {/* CHANGED: 탭 전환 UI — availableTypes가 2개 이상일 때만 */}
+        <DashboardTabs
+          availableTypes={availableTypes}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
         />
+
+        {/* CHANGED: activeTab에 따라 콘텐츠 분기 */}
+        <AnimatePresence mode="wait">
+          {activeTab === 'partner' ? (
+            <motion.div
+              key="partner-content"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <PartnerDashboardContent
+                dashboardData={dashboardData}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="premium-content"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <PremiumDashboardContent
+                dashboardData={dashboardData}
+                accommodationName={accommodationName}
+                onModify={handleOpenModify}
+                onRefund={handleOpenRefund}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* KakaoGuideSheet — 등급·금액 변경 전용 */}
+      {/* 프리미엄 전용 모달/시트 */}
       <AnimatePresence>
         {kakaoGuideType && (
           <KakaoGuideSheet
@@ -355,18 +427,71 @@ function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* CHANGED: RefundFlowModal에 totalAssigned 전달 (전액 환불 비활성 판단용) */}
       <AnimatePresence>
         {showRefundModal && (
           <RefundFlowModal
-            recruitment={recruitment}
-            totalAssigned={totalAssigned}
+            recruitment={dashboardData?.recruitment}
+            totalAssigned={dashboardData?.totalAssigned}
             accommodationName={accommodationName}
             onClose={handleCloseRefundModal}
           />
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+/** CHANGED: 프리미엄 대시보드 콘텐츠 — DashboardPage에서 분리 */
+function PremiumDashboardContent({ dashboardData, accommodationName, onModify, onRefund }) {
+  const {
+    application,
+    recruitment,
+    totalRequested,
+    totalAssigned,
+    creators,
+    canRefund,
+    isFullyRecruited,
+  } = dashboardData
+
+  const paymentConfirmed = application?.paymentConfirmed === true
+
+  return (
+    <>
+      {!paymentConfirmed && <PaymentPendingBanner />}
+
+      <div className="space-y-4">
+        <StatusCard application={application} />
+        <RecruitmentProgress
+          recruitment={recruitment}
+          totalRequested={totalRequested}
+          totalAssigned={totalAssigned}
+        />
+        <CreatorList creators={creators} />
+      </div>
+
+      <ActionButtons
+        canRefund={canRefund}
+        isFullyRecruited={isFullyRecruited}
+        onModify={onModify}
+        onRefund={onRefund}
+      />
+    </>
+  )
+}
+
+/** CHANGED: 파트너 대시보드 콘텐츠 — DashboardPage에서 분리 */
+function PartnerDashboardContent({ dashboardData }) {
+  const { campaign, creators } = dashboardData
+
+  return (
+    <>
+      <div className="space-y-4">
+        <PartnerStatusCard campaign={campaign} />
+        <PartnerCreatorList creators={creators} />
+      </div>
+
+      <PartnerActionButtons />
+    </>
   )
 }
 

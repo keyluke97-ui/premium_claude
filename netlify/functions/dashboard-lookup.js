@@ -1,12 +1,82 @@
-// dashboard-lookup.js - 사업자번호로 캠지기 모집 폼 검색, 캠핑장 목록 반환
+// dashboard-lookup.js - 사업자번호로 프리미엄+파트너 테이블 병렬 검색, 캠핑장 목록 반환
 
-import { buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { buildCorsHeaders } from './jwt-utils.js'
 
-// CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
+}
+
+// CHANGED: 테이블별 필드명 차이를 상수로 정의
+const TABLE_CONFIG = {
+  premium: {
+    businessNumberField: '사업자 번호',
+    accommodationNameField: '숙소 이름을 적어주세요.',
+    label: '프리미엄 협찬',
+  },
+  partner: {
+    businessNumberField: '사업자번호',
+    accommodationNameField: '캠핑장명',
+    label: '파트너 협찬',
+  },
+}
+
+/**
+ * 단일 Airtable 테이블에서 사업자번호로 캠핑장 목록 조회
+ * @param {string} tableId - Airtable 테이블 ID
+ * @param {string} cleanNumber - 숫자만 남긴 사업자번호
+ * @param {object} config - TABLE_CONFIG의 premium 또는 partner
+ * @param {string} apiKey - Airtable API Key
+ * @param {string} baseId - Airtable Base ID
+ * @param {string} type - 'premium' | 'partner'
+ * @returns {Array} - [{ name, recordId, type }]
+ */
+async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey, baseId, type) {
+  // CHANGED: 프리미엄은 SUBSTITUTE 필요 (하이픈 형식 저장), 파트너는 하이픈 없이 저장될 수 있음
+  const filterFormula = encodeURIComponent(
+    `SUBSTITUTE({${config.businessNumberField}}, '-', '')='${cleanNumber}'`
+  )
+  const fieldsQuery = [
+    'fields%5B%5D=' + encodeURIComponent(config.accommodationNameField),
+    'fields%5B%5D=' + encodeURIComponent(config.businessNumberField),
+  ].join('&')
+
+  const airtableUrl =
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}` +
+    `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=50`
+
+  try {
+    const response = await fetch(airtableUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    })
+
+    if (!response.ok) {
+      console.error(`[lookup] ${type} 테이블 조회 실패: ${response.status}`)
+      return []
+    }
+
+    const { records } = await response.json()
+    if (!records || records.length === 0) return []
+
+    // CHANGED: 동일 테이블 내 중복 캠핑장명 제거 (recordId는 첫 번째 것 사용)
+    const accommodationMap = new Map()
+    for (const record of records) {
+      const name = record.fields[config.accommodationNameField] || ''
+      if (name && !accommodationMap.has(name)) {
+        accommodationMap.set(name, record.id)
+      }
+    }
+
+    return Array.from(accommodationMap.entries()).map(([name, recordId]) => ({
+      name,
+      recordId,
+      type,
+    }))
+  } catch (error) {
+    console.error(`[lookup] ${type} 테이블 조회 에러:`, error.message)
+    return []
+  }
 }
 
 export default async (request) => {
@@ -20,7 +90,8 @@ export default async (request) => {
 
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
-  const TABLE_ID = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
+  const PREMIUM_TABLE_ID = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
+  const PARTNER_TABLE_ID = process.env.AIRTABLE_PARTNER_CAMPAIGN_TABLE_ID
 
   if (!API_KEY || !BASE_ID) {
     return jsonResponse({ error: 'Airtable 환경변수가 설정되지 않았습니다.' }, 500)
@@ -35,51 +106,43 @@ export default async (request) => {
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
-    // Airtable에서 사업자 번호로 검색
-    // cleanNumber는 숫자만 허용하므로 추가 이스케이프 불필요
-    // CHANGED: Airtable에 저장된 값이 '646-30-01063' 형식일 수 있으므로
-    //          SUBSTITUTE로 저장값의 하이픈도 제거 후 비교
-    const filterFormula = encodeURIComponent(`SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}'`)
-    const fieldsQuery = [
-      'fields%5B%5D=' + encodeURIComponent('숙소 이름을 적어주세요.'),
-      'fields%5B%5D=' + encodeURIComponent('사업자 번호'),
-    ].join('&')
+    // CHANGED: 프리미엄 + 파트너 테이블 병렬 조회
+    const fetchPromises = [
+      fetchAccommodationsFromTable(
+        PREMIUM_TABLE_ID, cleanNumber, TABLE_CONFIG.premium, API_KEY, BASE_ID, 'premium'
+      ),
+    ]
 
-    // CHANGED: P-2 - maxRecords=50 추가 (무제한 조회 방지)
-    const airtableUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}` +
-      `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=50`
-
-    const airtableResponse = await fetch(airtableUrl, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-    })
-
-    if (!airtableResponse.ok) {
-      // CHANGED: S-4 - detail 필드 제거: Airtable 내부 오류 메시지를 클라이언트에 노출하지 않음
-      return jsonResponse(
-        { error: 'Airtable 조회 중 오류가 발생했습니다.' },
-        airtableResponse.status
+    // CHANGED: 파트너 테이블 ID가 설정된 경우에만 파트너 조회 추가
+    if (PARTNER_TABLE_ID) {
+      fetchPromises.push(
+        fetchAccommodationsFromTable(
+          PARTNER_TABLE_ID, cleanNumber, TABLE_CONFIG.partner, API_KEY, BASE_ID, 'partner'
+        )
       )
     }
 
-    const { records } = await airtableResponse.json()
+    const results = await Promise.all(fetchPromises)
+    const flatItems = results.flat()
 
-    if (!records || records.length === 0) {
+    if (flatItems.length === 0) {
       return jsonResponse({ error: '해당 사업자 번호로 등록된 캠핑장이 없습니다.' }, 404)
     }
 
-    // 중복 제거한 캠핑장 목록 반환
-    const accommodationMap = new Map()
-    for (const record of records) {
-      const name = record.fields['숙소 이름을 적어주세요.'] || ''
-      if (name && !accommodationMap.has(name)) {
-        accommodationMap.set(name, record.id)
+    // CHANGED: 캠핑장명 기준으로 그룹핑 — 동일 캠핑장의 프리미엄/파트너를 하나로 묶음
+    const groupedMap = new Map()
+    for (const item of flatItems) {
+      const existing = groupedMap.get(item.name)
+      if (existing) {
+        existing.types.push({ type: item.type, recordId: item.recordId })
+      } else {
+        groupedMap.set(item.name, {
+          name: item.name,
+          types: [{ type: item.type, recordId: item.recordId }],
+        })
       }
     }
-
-    const accommodations = Array.from(accommodationMap.entries()).map(
-      ([name, recordId]) => ({ name, recordId })
-    )
+    const accommodations = Array.from(groupedMap.values())
 
     return jsonResponse({ success: true, accommodations })
   } catch (error) {

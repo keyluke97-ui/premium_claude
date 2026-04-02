@@ -27,7 +27,8 @@ const BANK_OPTIONS = [
 
 const KAKAO_LINK = 'http://pf.kakao.com/_fBxaQG/chat'
 
-// 클라이언트 이미지 압축
+// 클라이언트 이미지 압축 — Canvas API 사용, JPEG 0.75 품질로 변환
+// Netlify function 6MB body 제한 대응 (base64 ≈ 원본 × 1.33)
 async function compressImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -100,6 +101,7 @@ function BottomSheet({ onClose, children }) {
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 드래그 핸들 */}
         <div className="flex justify-center pt-4 pb-1">
           <div
             className="w-10 h-1 rounded-full"
@@ -113,10 +115,7 @@ function BottomSheet({ onClose, children }) {
 }
 
 // ─── Step 1: 전액 / 부분 선택 ────────────────────────────────────────────────
-// CHANGED: totalAssigned > 0이면 전액 환불 비활성 + 안내 문구
-function StepSelect({ totalAssigned, onSelectFull, onSelectPartial, onClose }) {
-  const hasMatchedCreators = totalAssigned > 0
-
+function StepSelect({ onSelectFull, onSelectPartial, onClose }) {
   return (
     <BottomSheet onClose={onClose}>
       <div className="px-6 pb-8">
@@ -124,8 +123,9 @@ function StepSelect({ totalAssigned, onSelectFull, onSelectPartial, onClose }) {
           <h3 className="text-base font-bold text-white">환불 요청</h3>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            className="w-10 h-10 rounded-lg flex items-center justify-center min-w-[44px] min-h-[44px]"
             style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+            aria-label="닫기"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke={TEXT_MUTED} strokeWidth="2" strokeLinecap="round" />
@@ -137,33 +137,15 @@ function StepSelect({ totalAssigned, onSelectFull, onSelectPartial, onClose }) {
           환불 유형을 선택해주세요.
         </p>
 
-        {/* CHANGED: 전액 환불 — 매칭 완료 건 있으면 비활성 */}
+        {/* 전액 환불 */}
         <button
-          onClick={hasMatchedCreators ? undefined : onSelectFull}
-          disabled={hasMatchedCreators}
+          onClick={onSelectFull}
           className="w-full text-left rounded-xl p-4 mb-3 transition-colors"
-          style={{
-            backgroundColor: hasMatchedCreators ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${hasMatchedCreators ? 'rgba(255,255,255,0.04)' : BORDER_COLOR}`,
-            opacity: hasMatchedCreators ? 0.5 : 1,
-            cursor: hasMatchedCreators ? 'not-allowed' : 'pointer',
-          }}
+          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: `1px solid ${BORDER_COLOR}` }}
         >
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-white">전액 환불</p>
-            {hasMatchedCreators && (
-              <span
-                className="px-2 py-0.5 rounded-md text-xs font-medium"
-                style={{ backgroundColor: 'rgba(255,107,107,0.1)', color: DESTRUCTIVE_COLOR }}
-              >
-                불가
-              </span>
-            )}
-          </div>
+          <p className="text-sm font-semibold text-white mb-1">전액 환불</p>
           <p className="text-xs" style={{ color: TEXT_MUTED }}>
-            {hasMatchedCreators
-              ? `매칭 완료된 크리에이터(${totalAssigned}명)가 있어 전액 환불이 불가합니다.`
-              : '협찬을 전면 취소하고 전액을 환불 받습니다.'}
+            협찬을 전면 취소하고 전액을 환불 받습니다.
           </p>
         </button>
 
@@ -175,7 +157,7 @@ function StepSelect({ totalAssigned, onSelectFull, onSelectPartial, onClose }) {
         >
           <p className="text-sm font-semibold text-white mb-1">부분 환불</p>
           <p className="text-xs" style={{ color: TEXT_MUTED }}>
-            매칭되지 않은 인원분의 금액을 환불 받습니다.
+            일부 등급·인원을 유지하고 남은 금액을 환불 받습니다.
             담당자와 카카오톡 상담 후 처리됩니다.
           </p>
         </button>
@@ -190,8 +172,8 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
   const [bankName, setBankName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [accountHolder, setAccountHolder] = useState('')
-  const [imageFile, setImageFile] = useState(null)
-  const [imageBase64, setImageBase64] = useState('')
+  const [imageFile, setImageFile] = useState(null)     // 파일 미리보기용
+  const [imageBase64, setImageBase64] = useState('')   // 서버 전송용
   const [imageError, setImageError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -255,6 +237,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
   return (
     <BottomSheet onClose={onClose}>
       <div className="px-6 pb-8">
+        {/* 헤더 */}
         <div className="flex items-center gap-2 mb-5 mt-2">
           <button
             onClick={onBack}
@@ -268,6 +251,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
           <h3 className="text-base font-bold text-white">전액 환불</h3>
         </div>
 
+        {/* 환불 사유 */}
         <div className="mb-4">
           <label className="block text-xs font-medium mb-2" style={{ color: TEXT_MUTED }}>
             환불 사유 <span style={{ color: DESTRUCTIVE_COLOR }}>*</span>
@@ -285,6 +269,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
           />
         </div>
 
+        {/* 환불 계좌 정보 */}
         <div
           className="rounded-xl p-4 mb-4"
           style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER_COLOR}` }}
@@ -294,6 +279,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
           </p>
 
           <div className="space-y-3">
+            {/* 은행 선택 */}
             <div>
               <label className="block text-xs mb-1" style={{ color: TEXT_MUTED }}>
                 은행 선택 <span style={{ color: DESTRUCTIVE_COLOR }}>*</span>
@@ -321,6 +307,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
               </select>
             </div>
 
+            {/* 계좌번호 */}
             <div>
               <label className="block text-xs mb-1" style={{ color: TEXT_MUTED }}>
                 계좌번호 <span style={{ color: DESTRUCTIVE_COLOR }}>*</span>
@@ -336,6 +323,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
               />
             </div>
 
+            {/* 예금주명 */}
             <div>
               <label className="block text-xs mb-1" style={{ color: TEXT_MUTED }}>
                 예금주명 <span style={{ color: DESTRUCTIVE_COLOR }}>*</span>
@@ -352,6 +340,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
           </div>
         </div>
 
+        {/* 통장사본 이미지 업로드 */}
         <div className="mb-4">
           <label className="block text-xs font-medium mb-2" style={{ color: TEXT_MUTED }}>
             통장 사본 <span style={{ color: DESTRUCTIVE_COLOR }}>*</span>
@@ -360,6 +349,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
             </span>
           </label>
 
+          {/* 이미지 미리보기 or 업로드 버튼 */}
           {imageBase64 ? (
             <div className="relative rounded-xl overflow-hidden" style={{ border: `1px solid ${BRAND_GREEN}` }}>
               <img
@@ -375,7 +365,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
                   if (fileInputRef.current) fileInputRef.current.value = ''
                 }}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)' }}
+                style={{ backgroundColor: 'rgba(0,0,0,0.6)', border: `1px solid rgba(255,255,255,0.2)` }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6l12 12" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
@@ -423,10 +413,12 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
           )}
         </div>
 
+        {/* 에러 */}
         {error && (
           <p className="text-sm mb-3" style={{ color: DESTRUCTIVE_COLOR }}>{error}</p>
         )}
 
+        {/* 제출 버튼 */}
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
@@ -453,9 +445,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
 }
 
 // ─── Step 2b: 부분 환불 상담 정보 입력 ───────────────────────────────────────
-// CHANGED: 매칭 완료된 등급은 카운터 잠금 + '매칭 완료 — 환불 불가' 태그
 function StepPartialRefund({ recruitment, accommodationName, onBack, onClose }) {
-  // CHANGED: 매칭 완료 등급은 assigned 값으로 고정, 미매칭 등급은 requested 값으로 초기화
   const [keepIcon, setKeepIcon] = useState(String(recruitment.icon.assigned))
   const [keepPartner, setKeepPartner] = useState(String(recruitment.partner.assigned))
   const [keepRising, setKeepRising] = useState(String(recruitment.rising.assigned))
@@ -481,36 +471,10 @@ function StepPartialRefund({ recruitment, accommodationName, onBack, onClose }) 
     window.open(KAKAO_LINK, '_blank', 'noopener,noreferrer')
   }, [summary])
 
-  // CHANGED: 등급별 잠금 여부 판단 (assigned > 0이면 잠금)
-  const tiers = [
-    {
-      key: 'icon',
-      label: '⭐️ 아이콘 크리에이터',
-      assigned: recruitment.icon.assigned,
-      requested: recruitment.icon.requested,
-      value: keepIcon,
-      setValue: setKeepIcon,
-      isLocked: recruitment.icon.assigned > 0,
-    },
-    {
-      key: 'partner',
-      label: '✔️ 파트너 크리에이터',
-      assigned: recruitment.partner.assigned,
-      requested: recruitment.partner.requested,
-      value: keepPartner,
-      setValue: setKeepPartner,
-      isLocked: recruitment.partner.assigned > 0,
-    },
-    {
-      key: 'rising',
-      label: '🔥 라이징 크리에이터',
-      assigned: recruitment.rising.assigned,
-      requested: recruitment.rising.requested,
-      value: keepRising,
-      setValue: setKeepRising,
-      isLocked: recruitment.rising.assigned > 0,
-    },
-  ]
+  const tierInputStyle = {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    border: `1px solid ${BORDER_COLOR}`,
+  }
 
   return (
     <BottomSheet onClose={onClose}>
@@ -531,8 +495,8 @@ function StepPartialRefund({ recruitment, accommodationName, onBack, onClose }) 
           style={{ backgroundColor: WARNING_BACKGROUND, border: `1px solid ${WARNING_BORDER}` }}
         >
           <p className="text-xs leading-relaxed" style={{ color: '#E8A838' }}>
-            매칭 완료된 크리에이터는 환불 대상에서 제외됩니다.
-            미매칭 인원분에 대해서만 환불 상담이 가능합니다.
+            부분 환불은 담당자와 카카오톡 상담 후 처리됩니다.
+            아래 정보를 입력하면 내용이 자동으로 복사되어 상담 시 전달됩니다.
           </p>
         </div>
 
@@ -558,44 +522,60 @@ function StepPartialRefund({ recruitment, accommodationName, onBack, onClose }) 
           </div>
         </div>
 
-        {/* CHANGED: 남길 인원 입력 — 매칭 완료 등급은 잠금 */}
+        {/* 남길 인원 입력 */}
         <div className="mb-4">
           <p className="text-xs font-medium mb-3" style={{ color: TEXT_MUTED }}>남기고 싶은 인원</p>
           <div className="space-y-3">
-            {tiers.map((tier) => (
-              <div key={tier.key} className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm text-white">{tier.label}</span>
-                  {/* CHANGED: 매칭 완료 태그 */}
-                  {tier.isLocked && (
-                    <span
-                      className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium"
-                      style={{ backgroundColor: 'rgba(255,107,107,0.1)', color: DESTRUCTIVE_COLOR }}
-                    >
-                      매칭 완료
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={tier.isLocked ? tier.assigned : 0}
-                    max={tier.isLocked ? tier.assigned : tier.requested}
-                    value={tier.value}
-                    onChange={(e) => tier.setValue(e.target.value)}
-                    disabled={tier.isLocked}
-                    className="w-16 rounded-lg px-3 py-2 text-sm text-center text-white focus:outline-none"
-                    style={{
-                      backgroundColor: tier.isLocked ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${tier.isLocked ? 'rgba(255,255,255,0.04)' : BORDER_COLOR}`,
-                      opacity: tier.isLocked ? 0.5 : 1,
-                      cursor: tier.isLocked ? 'not-allowed' : 'text',
-                    }}
-                  />
-                  <span className="text-xs" style={{ color: TEXT_MUTED }}>명</span>
-                </div>
+            {/* 아이콘 */}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white flex-1">⭐️ 아이콘 크리에이터</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max={recruitment.icon.assigned}
+                  value={keepIcon}
+                  onChange={(e) => setKeepIcon(e.target.value)}
+                  className="w-16 rounded-lg px-3 py-2 text-sm text-center text-white focus:outline-none"
+                  style={tierInputStyle}
+                />
+                <span className="text-xs" style={{ color: TEXT_MUTED }}>명</span>
               </div>
-            ))}
+            </div>
+
+            {/* 파트너 */}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white flex-1">✔️ 파트너 크리에이터</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max={recruitment.partner.assigned}
+                  value={keepPartner}
+                  onChange={(e) => setKeepPartner(e.target.value)}
+                  className="w-16 rounded-lg px-3 py-2 text-sm text-center text-white focus:outline-none"
+                  style={tierInputStyle}
+                />
+                <span className="text-xs" style={{ color: TEXT_MUTED }}>명</span>
+              </div>
+            </div>
+
+            {/* 라이징 */}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white flex-1">🔥 라이징 크리에이터</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max={recruitment.rising.assigned}
+                  value={keepRising}
+                  onChange={(e) => setKeepRising(e.target.value)}
+                  className="w-16 rounded-lg px-3 py-2 text-sm text-center text-white focus:outline-none"
+                  style={tierInputStyle}
+                />
+                <span className="text-xs" style={{ color: TEXT_MUTED }}>명</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -634,6 +614,7 @@ function StepPartialRefund({ recruitment, accommodationName, onBack, onClose }) 
           className="w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
           style={{ backgroundColor: '#FEE500', color: '#191600' }}
         >
+          {/* 카카오 아이콘 */}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <ellipse cx="12" cy="10.5" rx="10" ry="8" fill="#191600" />
             <path
@@ -702,9 +683,8 @@ function StepSuccess({ result, onClose }) {
 }
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-// CHANGED: totalAssigned prop 추가 (전액 환불 비활성 판단용)
-export default function RefundFlowModal({ recruitment, totalAssigned, accommodationName, onClose }) {
-  const [step, setStep] = useState('select')
+export default function RefundFlowModal({ recruitment, accommodationName, onClose }) {
+  const [step, setStep] = useState('select') // 'select' | 'full' | 'partial' | 'success'
   const [successResult, setSuccessResult] = useState(null)
 
   const handleSuccess = useCallback((result) => {
@@ -717,7 +697,6 @@ export default function RefundFlowModal({ recruitment, totalAssigned, accommodat
       {step === 'select' && (
         <StepSelect
           key="select"
-          totalAssigned={totalAssigned}
           onSelectFull={() => setStep('full')}
           onSelectPartial={() => setStep('partial')}
           onClose={onClose}

@@ -1,12 +1,42 @@
 // dashboard-auth.js - 사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리로 인증, JWT 토큰 발급
+// CHANGED: type 필드 추가 — 'premium' | 'partner' 분기로 해당 테이블에서 인증
 
-import { signToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: M-1, Item 8 - 공통 유틸 import
+import { signToken, sanitizeForFormula, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js'
 
-// CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
+}
+
+// CHANGED: 테이블별 필드명 차이를 상수로 정의 (dashboard-lookup.js와 동일 구조)
+const TABLE_CONFIG = {
+  premium: {
+    businessNumberField: '사업자 번호',
+    accommodationNameField: '숙소 이름을 적어주세요.',
+    phoneField: '연락처',
+  },
+  partner: {
+    businessNumberField: '사업자번호',
+    accommodationNameField: '캠핑장명',
+    phoneField: '연락처',
+  },
+}
+
+/**
+ * 협찬 유형에 따라 테이블 ID와 설정을 반환
+ * @param {string} type - 'premium' | 'partner'
+ * @returns {{ tableId: string, config: object } | null}
+ */
+function getTableSettings(type) {
+  if (type === 'partner') {
+    const tableId = process.env.AIRTABLE_PARTNER_CAMPAIGN_TABLE_ID
+    if (!tableId) return null
+    return { tableId, config: TABLE_CONFIG.partner }
+  }
+  // 기본값: premium
+  const tableId = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
+  return { tableId, config: TABLE_CONFIG.premium }
 }
 
 export default async (request) => {
@@ -18,7 +48,6 @@ export default async (request) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  // CHANGED: Item 8 - Rate Limiting 검사
   const rateCheck = checkRateLimit(request)
   if (!rateCheck.allowed) {
     return rateLimitResponse(rateCheck.retryAfterSeconds, CORS_HEADERS)
@@ -26,7 +55,6 @@ export default async (request) => {
 
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
-  const TABLE_ID = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
   const JWT_SECRET = process.env.JWT_SECRET
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
@@ -34,13 +62,13 @@ export default async (request) => {
   }
 
   try {
-    const { businessNumber, accommodationName, phoneLastFour, recordId } = await request.json()
+    // CHANGED: types 배열 수신 — [{type, recordId}] 형태. 단일 type/recordId도 하위 호환
+    const { businessNumber, accommodationName, phoneLastFour, recordId, type, types } = await request.json()
 
     if (!businessNumber || !accommodationName || !phoneLastFour) {
       return jsonResponse({ error: '사업자 번호, 캠핑장 이름, 연락처 뒷자리를 모두 입력해주세요.' }, 400)
     }
 
-    // CHANGED: 연락처 뒷자리 4자리 형식 검증
     const cleanPhoneLastFour = phoneLastFour.replace(/[^0-9]/g, '')
     if (cleanPhoneLastFour.length !== 4) {
       return jsonResponse({ error: '연락처 뒷자리 4자리를 정확히 입력해주세요.' }, 400)
@@ -48,68 +76,83 @@ export default async (request) => {
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
-    let matchedRecord
+    // CHANGED: types 배열이 있으면 사용, 없으면 단일 type/recordId로 하위 호환
+    const typeEntries = Array.isArray(types) && types.length > 0
+      ? types
+      : [{ type: type === 'partner' ? 'partner' : 'premium', recordId }]
 
-    // CHANGED: recordId가 있으면 직접 조회 (중복 신청 시 정확한 레코드 보장)
-    if (recordId) {
-      const directUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}/${recordId}`
-      const directResponse = await fetch(directUrl, {
-        headers: { Authorization: `Bearer ${API_KEY}` },
-      })
+    // CHANGED: 연락처 검증 — typeEntries 중 하나라도 매칭되면 인증 성공
+    let phoneVerified = false
+    const verifiedRecordIds = {} // { premium: 'recXXX', partner: 'recYYY' }
 
-      if (!directResponse.ok) {
-        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+    for (const entry of typeEntries) {
+      const entryType = entry.type === 'partner' ? 'partner' : 'premium'
+      const tableSettings = getTableSettings(entryType)
+      if (!tableSettings) continue
+
+      const { tableId, config } = tableSettings
+
+      try {
+        let record
+
+        if (entry.recordId) {
+          // recordId 직접 조회
+          const directUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(tableId)}/${entry.recordId}`
+          const directResponse = await fetch(directUrl, {
+            headers: { Authorization: `Bearer ${API_KEY}` },
+          })
+          if (!directResponse.ok) continue
+          record = await directResponse.json()
+
+          // 사업자번호 검증
+          const storedBusinessNumber = (record.fields[config.businessNumberField] || '').replace(/[^0-9]/g, '')
+          if (storedBusinessNumber !== cleanNumber) continue
+        } else {
+          // filterByFormula fallback
+          const filterFormula = encodeURIComponent(
+            `AND(SUBSTITUTE({${config.businessNumberField}}, '-', '')='${cleanNumber}', {${config.accommodationNameField}}='${sanitizeForFormula(accommodationName)}')`
+          )
+          const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent(config.phoneField)
+          const airtableUrl =
+            `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(tableId)}` +
+            `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
+          const airtableResponse = await fetch(airtableUrl, {
+            headers: { Authorization: `Bearer ${API_KEY}` },
+          })
+          if (!airtableResponse.ok) continue
+          const { records } = await airtableResponse.json()
+          if (!records || records.length === 0) continue
+          record = records[0]
+        }
+
+        // recordId 기록 (연락처 검증 전에 저장 — 검증은 한 번만 통과하면 됨)
+        verifiedRecordIds[entryType] = record.id
+
+        // 연락처 검증 (아직 미검증 시에만)
+        if (!phoneVerified) {
+          const storedPhone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
+          const storedLastFour = storedPhone.slice(-4)
+          if (storedLastFour && storedLastFour === cleanPhoneLastFour) {
+            phoneVerified = true
+          }
+        }
+      } catch (entryError) {
+        console.error(`[auth] ${entryType} 조회 실패:`, entryError.message)
+        continue
       }
-
-      const directRecord = await directResponse.json()
-
-      // CHANGED: recordId로 조회한 레코드의 사업자번호가 입력값과 일치하는지 검증 (위변조 방지)
-      const storedBusinessNumber = (directRecord.fields['사업자 번호'] || '').replace(/[^0-9]/g, '')
-      if (storedBusinessNumber !== cleanNumber) {
-        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
-      }
-
-      matchedRecord = directRecord
-    } else {
-      // CHANGED: recordId 없는 경우 기존 filterByFormula 방식 fallback
-      // CHANGED: SUBSTITUTE로 저장값의 하이픈도 제거 후 비교 (dashboard-lookup.js와 동일 처리)
-      const filterFormula = encodeURIComponent(
-        `AND(SUBSTITUTE({사업자 번호}, '-', '')='${cleanNumber}', {숙소 이름을 적어주세요.}='${sanitizeForFormula(accommodationName)}')`
-      )
-      const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent('연락처')
-      const airtableUrl =
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_ID)}` +
-        `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
-
-      const airtableResponse = await fetch(airtableUrl, {
-        headers: { Authorization: `Bearer ${API_KEY}` },
-      })
-
-      if (!airtableResponse.ok) {
-        return jsonResponse({ error: 'Airtable 조회 중 오류가 발생했습니다.' }, airtableResponse.status)
-      }
-
-      const { records } = await airtableResponse.json()
-
-      if (!records || records.length === 0) {
-        return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
-      }
-
-      matchedRecord = records[0]
     }
 
-    // CHANGED: 연락처 뒷자리 4자리 검증
-    const storedPhone = (matchedRecord.fields['연락처'] || '').replace(/[^0-9]/g, '')
-    const storedLastFour = storedPhone.slice(-4)
-
-    if (!storedLastFour || storedLastFour !== cleanPhoneLastFour) {
+    if (!phoneVerified) {
       return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
     }
 
-    // JWT 토큰 발급 (recordId + 캠핑장 이름 포함)
+    // CHANGED: JWT payload에 타입별 recordId + availableTypes 포함
+    const availableTypes = Object.keys(verifiedRecordIds)
     const token = signToken(
       {
-        recordId: matchedRecord.id,
+        premiumRecordId: verifiedRecordIds.premium || null,
+        partnerRecordId: verifiedRecordIds.partner || null,
+        availableTypes,
         accommodationName,
         businessNumber: cleanNumber,
       },
@@ -120,6 +163,7 @@ export default async (request) => {
       success: true,
       token,
       accommodationName,
+      availableTypes,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)

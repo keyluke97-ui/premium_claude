@@ -1,19 +1,31 @@
-// CreatorList.jsx - 배정된 크리에이터 목록 카드
+// PartnerCreatorList.jsx - 파트너 협찬 매칭 크리에이터 목록 (채널명, 등급, 채널 종류, 입실일, 상태)
 
 import { motion } from 'framer-motion'
-// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
 import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../../constants/designTokens'
 
-// CHANGED: 등급화 매핑 기준 수정 (3=아이콘⭐️=골드, 2=파트너✔️=그린, 1=라이징🔥=오렌지)
+// 등급 배지 색상 (프리미엄 CreatorList와 동일 매핑)
 const GRADE_BADGE_COLORS = {
-  3: { background: '#FFD70020', color: '#FFD700' },  // 아이콘 ⭐️
-  2: { background: `${BRAND_GREEN}20`, color: BRAND_GREEN }, // 파트너 ✔️
-  1: { background: '#FF6B0025', color: '#FF8C00' },  // 라이징 🔥
+  3: { background: '#FFD70020', color: '#FFD700' },
+  2: { background: `${BRAND_GREEN}20`, color: BRAND_GREEN },
+  1: { background: '#FF6B0025', color: '#FF8C00' },
 }
 
-/** 날짜 포맷: YYYY-MM-DD → MM/DD(요일), 없으면 '조율 중' */
+// 신청 상태 색상
+const STATUS_COLORS = {
+  '신청완료': { background: 'rgba(255,140,0,0.12)', text: '#FF8C00' },
+  '확정': { background: `${BRAND_GREEN}15`, text: BRAND_GREEN },
+  '취소': { background: 'rgba(255,107,107,0.12)', text: '#FF6B6B' },
+}
+
+// 채널 종류 라벨
+const CHANNEL_TYPE_LABELS = {
+  '인스타': '📸 인스타',
+  '유튜브': '▶️ 유튜브',
+}
+
+/** 날짜 포맷: YYYY-MM-DD → MM/DD(요일), 없으면 null */
 function formatDate(dateString) {
-  if (!dateString) return null  // null 반환으로 조율 중 상태 구분
+  if (!dateString) return null
   try {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return dateString
@@ -28,9 +40,10 @@ function formatDate(dateString) {
 }
 
 /** 단일 크리에이터 카드 */
-function CreatorCard({ creator, index }) {
-  // CHANGED: 알 수 없는 등급은 중립색 fallback
+function PartnerCreatorCard({ creator, index }) {
   const badgeColor = GRADE_BADGE_COLORS[creator.grade] || { background: 'rgba(255,255,255,0.08)', color: TEXT_MUTED }
+  const statusColor = STATUS_COLORS[creator.status] || STATUS_COLORS['신청완료']
+  const channelLabel = CHANNEL_TYPE_LABELS[creator.channelType] || creator.channelType || ''
 
   return (
     <motion.div
@@ -46,35 +59,12 @@ function CreatorCard({ creator, index }) {
       {/* 상단: 채널명 + 등급 뱃지 */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 min-w-0">
-          {creator.channelUrl ? (
-            <a
-              href={creator.channelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium truncate block"
-              style={{ color: BRAND_GREEN }}
-              aria-label={`${creator.channelName || '채널명 없음'} 채널 열기 (새 창)`}
-            >
-              {creator.channelName || '채널명 없음'}
-              <svg
-                className="inline-block ml-1 w-3 h-3"
-                viewBox="0 0 24 24"
-                fill="none"
-                style={{ verticalAlign: 'middle' }}
-                aria-hidden="true"
-              >
-                <path
-                  d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"
-                  stroke={BRAND_GREEN}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </a>
-          ) : (
-            <span className="text-sm font-medium text-white truncate block">
-              {creator.channelName || '채널명 없음'}
+          <span className="text-sm font-medium text-white truncate block">
+            {creator.channelName}
+          </span>
+          {channelLabel && (
+            <span className="text-xs mt-0.5 block" style={{ color: TEXT_MUTED }}>
+              {channelLabel}
             </span>
           )}
         </div>
@@ -90,47 +80,44 @@ function CreatorCard({ creator, index }) {
         </span>
       </div>
 
-      {/* 하단: 체크인 / 사이트 / 콘텐츠 */}
-      {/* CHANGED: 입실일·사이트가 null이면 '조율 중' 상태로 표시 */}
-      <div className="grid grid-cols-2 gap-2">
-        <DetailItem label="체크인" value={formatDate(creator.checkInDate)} pending={!creator.checkInDate} />
-        <DetailItem label="사이트" value={creator.site || null} pending={!creator.site} />
-        {creator.contentLink && (
-          <div className="col-span-2">
-            <span className="text-xs block mb-1" style={{ color: TEXT_MUTED }}>콘텐츠</span>
-            <a
-              href={creator.contentLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs truncate block"
-              style={{ color: BRAND_GREEN }}
-              aria-label="크리에이터 콘텐츠 보기 (새 창)"
-            >
-              콘텐츠 보기 →
-            </a>
-          </div>
-        )}
+      {/* 하단: 상태 + 입실일 + 사이트 */}
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <span className="text-xs block mb-0.5" style={{ color: TEXT_MUTED }}>상태</span>
+          <span
+            className="text-xs font-medium"
+            style={{ color: statusColor.text }}
+          >
+            {creator.status}
+          </span>
+        </div>
+        <div>
+          <span className="text-xs block mb-0.5" style={{ color: TEXT_MUTED }}>체크인</span>
+          {creator.checkInDate ? (
+            <span className="text-xs text-white">{formatDate(creator.checkInDate)}</span>
+          ) : (
+            <span className="text-xs" style={{ color: '#FF8C00' }}>조율 중</span>
+          )}
+        </div>
+        <div>
+          <span className="text-xs block mb-0.5" style={{ color: TEXT_MUTED }}>사이트</span>
+          {creator.checkInSite ? (
+            <span className="text-xs text-white">{creator.checkInSite}</span>
+          ) : (
+            <span className="text-xs" style={{ color: '#FF8C00' }}>조율 중</span>
+          )}
+        </div>
       </div>
     </motion.div>
   )
 }
 
-/** 세부 정보 아이템 — pending=true이면 '조율 중' 상태로 표시 */
-function DetailItem({ label, value, pending = false }) {
-  return (
-    <div>
-      <span className="text-xs block mb-0.5" style={{ color: TEXT_MUTED }}>{label}</span>
-      {pending ? (
-        <span className="text-xs" style={{ color: '#FF8C00' }}>조율 중</span>
-      ) : (
-        <span className="text-xs text-white">{value}</span>
-      )}
-    </div>
-  )
-}
+export default function PartnerCreatorList({ creators }) {
+  // 확정/신청완료만 표시 (취소는 API에서 이미 필터됨, 방어적 코딩)
+  const visibleCreators = (creators || []).filter(creator => creator.status !== '취소')
+  const confirmedCount = visibleCreators.filter(creator => creator.status === '확정').length
 
-export default function CreatorList({ creators }) {
-  if (!creators || creators.length === 0) {
+  if (visibleCreators.length === 0) {
     return (
       <motion.div
         className="rounded-2xl p-5"
@@ -157,15 +144,15 @@ export default function CreatorList({ creators }) {
               />
             </svg>
           </div>
-          <h2 className="text-base font-bold text-white">배정 크리에이터</h2>
+          <h2 className="text-base font-bold text-white">매칭 크리에이터</h2>
         </div>
 
         <div className="text-center py-8">
           <p className="text-sm" style={{ color: TEXT_MUTED }}>
-            아직 배정된 크리에이터가 없습니다.
+            아직 매칭된 크리에이터가 없습니다.
           </p>
           <p className="text-xs mt-1" style={{ color: TEXT_MUTED }}>
-            모집이 진행되면 이곳에 표시됩니다.
+            크리에이터가 신청하면 이곳에 표시됩니다.
           </p>
         </div>
       </motion.div>
@@ -200,25 +187,35 @@ export default function CreatorList({ creators }) {
               />
             </svg>
           </div>
-          <h2 className="text-base font-bold text-white">배정 크리에이터</h2>
+          <h2 className="text-base font-bold text-white">매칭 크리에이터</h2>
         </div>
 
-        <span
-          className="text-xs font-medium px-3 py-1 rounded-full"
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.06)',
-            color: TEXT_MUTED,
-          }}
-        >
-          {creators.length}명
-        </span>
+        <div className="flex items-center gap-2">
+          {confirmedCount > 0 && (
+            <span
+              className="text-xs font-medium px-2.5 py-1 rounded-full"
+              style={{ backgroundColor: `${BRAND_GREEN}15`, color: BRAND_GREEN }}
+            >
+              확정 {confirmedCount}명
+            </span>
+          )}
+          <span
+            className="text-xs font-medium px-3 py-1 rounded-full"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: TEXT_MUTED,
+            }}
+          >
+            전체 {visibleCreators.length}명
+          </span>
+        </div>
       </div>
 
       {/* 크리에이터 카드 목록 */}
       <div className="space-y-3">
-        {creators.map((creator, index) => (
-          <CreatorCard
-            key={creator.offerId || index}
+        {visibleCreators.map((creator, index) => (
+          <PartnerCreatorCard
+            key={creator.applicationId || index}
             creator={creator}
             index={index}
           />

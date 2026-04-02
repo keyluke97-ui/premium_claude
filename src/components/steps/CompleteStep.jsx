@@ -1,9 +1,6 @@
-// CompleteStep.jsx - 신청 완료 페이지 (입금 안내 + 신청 요약)
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard } from 'lucide-react'
 import { useState } from 'react'
-// CHANGED: 하드코딩된 단가 제거 → packages.js의 calcCrewPriceWithVat로 통일
-import { calcCrewPriceWithVat } from '../../data/packages'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
 const DASHBOARD_LOGIN_PATH = '/dashboard/login'
@@ -27,13 +24,16 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
   const [hasCopied, setHasCopied] = useState(false)
   const accountNumber = '225-910068-71204'
 
-  // CHANGED: 하드코딩 단가(PARTNER 100000, RISING 50000) 제거
-  // packages.js의 PRICING 기준 calcCrewPriceWithVat 사용으로 단가 불일치 해소
+  // 가격 계산 (plan에 priceWithVat이 없을 수 있음)
+  const ICON_PRICE = 300000
+  const PARTNER_PRICE = 100000
+  const RISING_PRICE = 50000
+
   const computedPrice = (() => {
     if (plan?.priceWithVat) return plan.priceWithVat
-    const crewData = crew || plan?.crew || { icon: 0, partner: 0, rising: 0 }
-    const priceWithVat = calcCrewPriceWithVat(crewData)
-    return priceWithVat > 0 ? priceWithVat : 0
+    const c = crew || plan?.crew || { icon: 0, partner: 0, rising: 0 }
+    const base = (c.icon || 0) * ICON_PRICE + (c.partner || 0) * PARTNER_PRICE + (c.rising || 0) * RISING_PRICE
+    return base > 0 ? Math.round(base * 1.1) : 0
   })()
 
   const handleCopy = () => {
@@ -52,14 +52,14 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
       fallbackCopy()
     }
     function fallbackCopy() {
-      const textarea = document.createElement('textarea')
-      textarea.value = accountNumber
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
+      const ta = document.createElement('textarea')
+      ta.value = accountNumber
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
       try { document.execCommand('copy'); doCopy() } catch {} // eslint-disable-line
-      document.body.removeChild(textarea)
+      document.body.removeChild(ta)
     }
   }
 

@@ -1,6 +1,6 @@
 # 캠지기 프리미엄 협찬 대시보드 — 핸드오버 문서
 
-> **최종 작성일**: 2026-03-16 (환불 플로우 전면 개편 — 전액/부분 분기 + 통장사본 업로드)
+> **최종 작성일**: 2026-03-18 (플랜 이름 직관화 + 15만원 맛보기 티어 추가 + 단가 상향 반영)
 > **프로젝트 위치**: `camjigi_claude/premium_dashboard/`
 > **배포 플랫폼**: Netlify (SPA + Serverless Functions)
 > **GitHub**: `keyluke97-ui/premium_claude`
@@ -15,7 +15,7 @@
 |------|-----------|----------------------|
 | 사용자 | 캠지기 (캠핑장 운영자) — 신규 신청 | 캠지기 — 기존 신청 건 관리 |
 | 경로 | `/` | `/dashboard/login`, `/dashboard` |
-| 핵심 기능 | 프리미엄 협찬 신청 폼 (퍼널) | 신청 현황 조회, 크리에이터 목록 확인, 인원 변경 카카오 상담, 환불 요청 |
+| 핵심 기능 | 프리미엄 협찬 신청 폼 (퍼널) | 신청 현황 조회, 크리에이터 목록 확인, 인원 변경·환불 카카오 상담 |
 | 데이터 | Airtable 직접 호출 (프론트) | Netlify Functions → Airtable (백엔드) |
 | 인증 | 없음 | 사업자번호 + 캠핑장 선택 + 연락처 뒷자리 4자리 → JWT |
 
@@ -59,8 +59,8 @@ premium_dashboard/
 │   ├── dashboard-lookup.js             # 사업자번호 → 캠핑장 목록
 │   ├── dashboard-auth.js               # 로그인 → JWT 발급
 │   ├── dashboard-data.js               # 대시보드 데이터 조회
-│   ├── dashboard-modify.js             # 크루 인원 변경 (백엔드 유지, 카카오톡 상담으로 전환됨)
-│   ├── dashboard-refund.js             # ★ 환불 요청 (전액 환불 + 통장사본 업로드)
+│   ├── dashboard-modify.js             # 크루 인원 변경
+│   ├── dashboard-refund.js             # 환불 요청
 │   └── submit.js                       # 기존 퍼널용 (건드리지 말 것)
 │
 ├── src/
@@ -103,7 +103,14 @@ premium_dashboard/
 ```
 
 **수정 가능 영역**: `src/pages/dashboard/`, `src/utils/dashboardApi.js`, `netlify/functions/dashboard-*.js`
-**수정 금지 영역**: `src/pages/FunnelPage.jsx`, `src/components/`, `src/data/`, `src/utils/airtable.js`, `netlify/functions/submit.js`
+**수정 주의 영역** (퍼널 공유 파일 — 대시보드 작업 시 의도치 않은 퍼널 영향 주의):
+- `src/data/packages.js` — 플랜 정의 (퍼널 + 대시보드 공유)
+- `src/components/CreatorGuideSheet.jsx` — 등급 안내 바텀시트
+- `src/components/steps/BudgetStep.jsx` — 예산 선택 스텝
+- `netlify/functions/submit.js` — 퍼널 제출 서버리스 함수
+**수정 금지 영역** (퍼널 코어 — 대시보드 작업 시 절대 건드리지 말 것):
+- `src/pages/FunnelPage.jsx` — 퍼널 메인 페이지
+- `src/utils/airtable.js` — 퍼널용 Airtable 유틸
 
 ---
 
@@ -255,12 +262,13 @@ premium_dashboard/
 | 등급 번호 (Airtable) | 이름 | 이모지 | 단가 (VAT별도) |
 |----------------------|------|--------|---------------|
 | **3** | 아이콘 | ⭐️ | 300,000원 |
-| **2** | 파트너 | ✔️ | 100,000원 |
-| **1** | 라이징 | 🔥 | 50,000원 |
+| **2** | 파트너 | ✔️ | 150,000원 |
+| **1** | 라이징 | 🔥 | 100,000원 |
 
 > ⚠️ **Airtable 등급 번호는 숫자가 클수록 높은 등급** (아이콘=3, 라이징=1). 직관과 반대이므로 주의.
+> ⚠️ **단가 변경 이력**: 2026-03-18 이전 신청건은 구 단가 (파트너 100,000원, 라이징 50,000원)가 Airtable 레코드에 저장되어 있음. 코드의 fallback은 신규 신청에만 적용되며, 기존 레코드는 개별 단가 필드 값이 우선.
 
-VAT 포함 총액 = (아이콘수×30만 + 파트너수×10만 + 라이징수×5만) × 1.1
+VAT 포함 총액 = (아이콘수×30만 + 파트너수×15만 + 라이징수×10만) × 1.1
 
 ### 입금 계좌
 - 하나은행 225-910068-71204
@@ -273,7 +281,7 @@ VAT 포함 총액 = (아이콘수×30만 + 파트너수×10만 + 라이징수×5
 ### Netlify 대시보드에서 설정해야 하는 변수 (서버리스 함수용)
 
 | 변수명 | 설명 | 예시 |
-|--------|------|-----|
+|--------|------|------|
 | `AIRTABLE_API_KEY` | Airtable Personal Access Token | `pat...` |
 | `AIRTABLE_BASE_ID` | Airtable Base ID | `appEGM6qarNr9M7HN` |
 | `AIRTABLE_TABLE_ID` | 캠지기 모집 폼 테이블 ID | `tblt5o7BJFOXjfT3c` |
@@ -305,11 +313,8 @@ VITE_AIRTABLE_TABLE_NAME=협찬신청
 | `BORDER_COLOR` | `rgba(255,255,255,0.08)` | 구분선, 카드 테두리 |
 | `TEXT_MUTED` | `rgba(255,255,255,0.5)` | 보조 텍스트 |
 | `OVERLAY_COLOR` | `rgba(0,0,0,0.7)` | 모달 오버레이 |
-| `DESTRUCTIVE_COLOR` | `#FF4444` | 환불 등 위험 액션 버튼 |
-| `WARNING_BACKGROUND` | `rgba(255,140,0,0.08)` | 경고 배너 배경 |
-| `WARNING_BORDER` | `rgba(255,140,0,0.25)` | 경고 배너 테두리 |
 
-추가:
+추가 색상:
 - 환불/위험 액션: `#FF6B6B` (destructive red)
 - 모바일 최대 너비: `448px` (`max-w-md`)
 
@@ -377,7 +382,7 @@ VITE_AIRTABLE_TABLE_NAME=협찬신청
 - 현재 import되지 않음. 삭제 예정. 복원 필요 시 `DashboardPage.jsx`에 import 추가 필요.
 
 ### RefundModal.jsx ⚠️ deprecated
-- 현재 import되지 않음. 삭제 예정.
+- 현재 import되지 않음. 삭제 예정. 복원 필요 시 `DashboardPage.jsx`에 import 추가 필요.
 
 ---
 
@@ -389,8 +394,7 @@ VITE_AIRTABLE_TABLE_NAME=협찬신청
 - 새 탭(`_blank`)으로 열림
 - 사용 위치:
   - `StatusCard.jsx` — 입금 미확인 시 입금 확인 요청 버튼
-  - `KakaoGuideSheet.jsx` — 인원 변경 상담 연결 버튼
-  - `RefundFlowModal.jsx` — 부분 환불 상담 연결 버튼
+  - `KakaoGuideSheet.jsx` — 인원 변경·환불 요청 시 상담 연결 버튼
   - `DashboardPage.jsx` ActionButtons 하단 문의 링크
 
 ---
@@ -406,13 +410,13 @@ VITE_AIRTABLE_TABLE_NAME=협찬신청
 cd premium_dashboard
 npm install
 npm run build          # dist/ 디렉토리에 빌드 산출물 생성
-npm run deploy:prod    # Netlify CLI로 배포
+netlify deploy --prod  # Netlify CLI로 배포
 ```
 
 ### 로컬 개발
 ```bash
 npm install
-npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
+netlify dev            # Vite dev server + Netlify Functions 에뮬레이션
 ```
 > `netlify dev`를 써야 서버리스 함수(`/api/dashboard/*`)가 로컬에서도 동작한다.
 
@@ -426,7 +430,6 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 4. **디자인 토큰 변경 시**: `src/constants/designTokens.js` 파일 하나만 수정하면 전체 반영된다.
 5. **JWT_SECRET 변경 시**: 기존에 발급된 모든 토큰이 무효화된다.
 6. **Airtable 테이블 구조 변경 시**: `dashboard-data.js`의 필드 매핑을 반드시 함께 업데이트.
-7. **KakaoGuideSheet `type='refund'` 사용 금지**: 환불은 `RefundFlowModal`로 처리. `KakaoGuideSheet`는 `type='modify'`만 사용.
 
 ---
 
@@ -437,7 +440,7 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 ### 완료된 수정 (✅)
 
 | ID | 분류 | 내용 | 수정 파일 |
-|----|------|------|----------|
+|----|------|------|-----------|
 | S-1 | 보안 | Airtable `filterByFormula` 인젝션 방지 — `sanitizeForFormula` 적용 | `jwt-utils.js`, `dashboard-auth.js`, `dashboard-data.js`, `dashboard-modify.js`, `dashboard-refund.js` |
 | S-2 | 보안 | CORS `*` 와일드카드 → `ALLOWED_ORIGIN` 환경변수 기반 `buildCorsHeaders` | 위 5개 함수 전체 |
 | S-4 | 보안 | 에러 응답에서 Airtable 내부 정보(`detail` 필드) 노출 제거 | 위 5개 함수 전체 |
@@ -468,7 +471,7 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 ### 신규 환경변수
 
 | 변수명 | 설명 | 기본값 |
-|--------|------|-------|
+|--------|------|--------|
 | `ALLOWED_ORIGIN` | CORS 허용 오리진 | 미설정 시 `*` (기존 동작 유지) |
 
 > ⚠️ **배포 전 필수**: Netlify 대시보드에서 `ALLOWED_ORIGIN`을 실 도메인(`https://your-domain.com`)으로 설정할 것.
@@ -509,7 +512,7 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 ### 수정 파일 요약
 
 | 파일 | 변경 내용 |
-|------|----------|
+|------|-----------|
 | `netlify/functions/dashboard-lookup.js` | Airtable 필터에 `SUBSTITUTE` 적용 (하이픈 정규화) |
 | `netlify/functions/dashboard-auth.js` | Airtable 필터에 `SUBSTITUTE` 적용 (하이픈 정규화) |
 | `src/pages/dashboard/LoginPage.jsx` | 객체→문자열 버그 수정 (`accommodations[0]` → `accommodations[0].name`, `map` 렌더링 수정) |
@@ -529,7 +532,7 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 기존 사업자번호만으로 로그인 가능한 구조에서, 3가지 조건이 모두 일치해야 인증되도록 강화.
 
 | 항목 | 기존 | 변경 후 |
-|------|------|--------|
+|------|------|---------|
 | Step 1 | 사업자번호 입력 | 사업자번호 입력 (동일) |
 | Step 2 | 캠핑장 선택 → 1개면 바로 로그인 | 캠핑장 선택 + **연락처 뒷자리 4자리 입력** → 1개여도 항상 Step 2 |
 | 인증 조건 | 사업자번호 + 캠핑장명 | 사업자번호 + 캠핑장명 + **연락처 뒷자리 4자리** |
@@ -538,7 +541,7 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 **수정 파일:**
 
 | 파일 | 변경 내용 |
-|------|----------|
+|------|-----------|
 | `netlify/functions/dashboard-auth.js` | `phoneLastFour` 파라미터 수신, Airtable `연락처` 필드 조회, 뒷자리 4자리 비교 로직 추가 |
 | `src/utils/dashboardApi.js` | `login()` 함수에 `phoneLastFour` 세 번째 인자 추가 |
 | `src/pages/dashboard/LoginPage.jsx` | Step 2에 연락처 뒷자리 입력 필드 추가, 캠핑장 1개일 때도 항상 Step 2 이동, lookup 응답에서 name 추출 처리 |
@@ -553,16 +556,32 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 기존 `유료 오퍼 신청 건` 테이블 카운팅 방식에서, `캠지기 모집 폼`의 `신청 가능 인원` 수식 필드 기반으로 전환.
 
 | 항목 | 기존 | 변경 후 |
-|------|------|--------|
+|------|------|---------|
 | 배정 인원 판단 | `유료 오퍼 신청 건` 테이블 조회 → 등급별 레코드 카운팅 | `모집 인원 - 신청 가능 인원`으로 역산 |
 | API 호출 수 | 2건 (모집 폼 + 오퍼 테이블) | **1건** (모집 폼만) |
 | 오퍼 상태 필터링 | 없음 (취소/거절 건도 카운팅) | 해당 없음 (수식 필드가 정확한 값 반영) |
 | 감소 차단 | 배정 인원 미만으로 감소 차단 | 동일 (감소만 차단, 증가는 허용) |
 
+**사용하는 Airtable 수식 필드:**
+
+| 필드명 | 설명 |
+|--------|------|
+| `⭐️ 신청 가능 인원` | 아이콘 등급 남은 슬롯 (수식 필드, 실시간 반영) |
+| `✔️ 신청 가능 인원` | 파트너 등급 남은 슬롯 |
+| `🔥 신청 가능 인원` | 라이징 등급 남은 슬롯 |
+
+**엣지케이스 처리 (`getAssignedCount` 함수):**
+
+| 케이스 | 처리 |
+|--------|------|
+| 모집 인원 0, 신청 가능 0 | 미사용 등급 → 배정 0 (모집 마감으로 오판 방지) |
+| 신청 가능 인원 필드 null/undefined | 데이터 누락 → 안전하게 모집 인원 전체를 배정된 것으로 처리 (감소 잠금) |
+| 신청 가능 인원 음수 (초과 배정) | `Math.max(0, assigned)` 보정 |
+
 **수정 파일:**
 
 | 파일 | 변경 내용 |
-|------|----------|
+|------|-----------|
 | `netlify/functions/dashboard-modify.js` | 오퍼 테이블 조회 제거, `sanitizeForFormula` import 제거, `getAssignedCount` 함수 추가, 신청 가능 인원 필드 기반 배정 판단 |
 
 **제거된 의존성:**
@@ -584,6 +603,13 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 | 등급 추출 | `multipleLookupValues` 타입 → 배열 반환 → `Array.isArray()` 첫 번째 요소 추출 |
 | 미배정 표시 | `checkInDate` / `site`가 null → "조율 중" (오렌지) |
 
+**수정 파일:**
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `netlify/functions/dashboard-data.js` | `mapOfferToCreator()` 함수 추가, `Promise.all` 병렬 조회, `sanitizeForFormula` 복구 |
+| `src/pages/dashboard/components/CreatorList.jsx` | 등급 배지 컬러 수정 (3=gold, 2=green, 1=orange), "조율 중" pending 표시 추가 |
+
 **⚠️ Airtable 필드명 특이사항:**
 - 숙소명 lookup 필드명: `숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))` — `오퍼ㅏ`의 `ㅏ`는 Airtable 원본의 오타. 실제 그대로 사용해야 함.
 - 등급 필드명: `등급화 (from 크리에이터 채널명 (크리에이터 명단)) (from 크리에이터 채널명(프리미엄 협찬 신청))` — 중첩 lookup이라 전체 필드명 그대로 사용.
@@ -595,9 +621,24 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 `입금내역 확인` 체크박스 필드를 기준으로 대시보드 표시 분기.
 
 | 상태 | 표시 내용 |
-|------|----------|
+|------|-----------|
 | `paymentConfirmed = true` | 대시보드 정상, StatusCard에 "신청 금액 (VAT 포함)" 초록 표시 |
 | `paymentConfirmed = false` | 상단 주황 배너 + StatusCard에 주황 경고 금액 + 하나은행 계좌 안내 + 카카오톡 입금 확인 버튼 |
+
+**추가된 Airtable 필드:**
+
+| 필드명 | 타입 | API 키 | 설명 |
+|--------|------|--------|------|
+| `입금내역 확인` | checkbox | `paymentConfirmed` | 캠핏 내부에서 입금 확인 후 체크 |
+| `실입금 필요 금액` | formula | `requiredPaymentAmount` | VAT 포함 최종 금액 (Airtable 수식 필드) |
+
+**수정 파일:**
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `netlify/functions/dashboard-data.js` | `applicationData`에 두 필드 추가 |
+| `src/pages/dashboard/components/StatusCard.jsx` | `paymentConfirmed` 기준 분기 렌더링, `PaymentConfirmedSection` / `PaymentPendingSection` 분리 |
+| `src/pages/dashboard/DashboardPage.jsx` | `PaymentPendingBanner` 컴포넌트 추가 |
 
 ---
 
@@ -605,10 +646,22 @@ npm run dev:netlify    # Vite dev server + Netlify Functions 에뮬레이션
 
 > ⚠️ **환불은 이후 §19에서 다시 시스템 처리 방식으로 전환됨. 이 섹션은 인원 변경만 해당.**
 
+기존 대시보드 내 시스템 처리에서 카카오톡 채널 상담 수기 처리로 변경.
+
 | 항목 | 기존 | 변경 후 |
-|------|------|--------|
+|------|------|---------|
 | 인원 변경 | `ModifyCrewModal` → `POST /api/dashboard/modify` | `KakaoGuideSheet(type='modify')` → 카카오톡 링크 |
 | 환불 요청 | `RefundModal` → `POST /api/dashboard/refund` | `KakaoGuideSheet(type='refund')` → 카카오톡 링크 (→ §19에서 재전환) |
+
+**수정/삭제 파일:**
+
+| 파일 | 상태 | 내용 |
+|------|------|------|
+| `src/pages/dashboard/components/KakaoGuideSheet.jsx` | **신규 생성** | 인원변경·환불 안내 바텀시트 |
+| `src/pages/dashboard/DashboardPage.jsx` | 수정 | ModifyCrewModal·RefundModal 제거, KakaoGuideSheet 추가 |
+| `src/utils/dashboardApi.js` | 수정 | `modifyCrew()`, `requestRefund()` 제거 |
+| `netlify/functions/dashboard-modify.js` | **유지** | 추후 시스템 전환 시 재활성화 가능 |
+| `netlify/functions/dashboard-refund.js` | **유지** | 추후 §19에서 재활성화됨 |
 
 ---
 
@@ -683,7 +736,7 @@ Content-Type: multipart/form-data (자동)
 환불 처리를 위해 `캠지기 모집 폼` 테이블에 아래 필드가 기존에 존재해야 함:
 
 | 필드명 | 타입 | 저장 내용 |
-|--------|------|----------|
+|--------|------|-----------|
 | `환불 은행` | text | 은행명 |
 | `계좌번호` | text | 계좌번호 (하이픈 없이) |
 | `예금주명` | text | 예금주 이름 |
@@ -699,6 +752,78 @@ Content-Type: multipart/form-data (자동)
 
 ---
 
+## 20. 플랜 이름 직관화 + 15만원 맛보기 티어 추가 + 단가 상향 반영 (2026-03-18)
+
+### 20-1. 변경 배경
+
+기존 플랜 이름(시그니처, 밸런스, 웨이브, 매스 등)이 50~60대 캠지기에게 직관적이지 않아 한글 중심으로 전면 리네이밍. 동시에 15만원 맛보기 티어 신설, 파트너·라이징 단가 상향 반영.
+
+### 20-2. 플랜 이름 변경 매핑
+
+| 예산 | 구 이름 | 새 이름 | ID 변경 |
+|------|---------|---------|---------|
+| 70만 | (없음, 신규 조합) | 올인원 플랜 | `allinone-70` |
+| 70만 | 더블 아이콘 | 대박 아이콘 플랜 | `doubleicon-70` → `bigicon-70` |
+| 70만 | 매스 플랜 | 물량 라이징 플랜 | `mass-70` → `volume-70` |
+| 50만 | 시그니처 플랜 | 베스트 플랜 | `signature-50` → `best-50` |
+| 50만 | 밸런스 플랜 | 알찬 프로 플랜 | `balance-50` → `rich-50` |
+| 50만 | 웨이브 플랜 | 확산 플랜 | `wave-50` → `spread-50` |
+| 30만 | 원픽 플랜 | 원픽 플랜 (유지) | `onepick-30` (유지) |
+| 30만 | 듀오 플랜 | 실속 파트너 플랜 | `duo-30` → `value-30` |
+| 30만 | 입문 스타터 | 입문 플랜 | `triple-30` → `beginner-30` |
+| **15만 (신규)** | — | **맛보기 플랜** | `taste-15` |
+
+### 20-3. 15만원 맛보기 티어 추가
+
+| 항목 | 내용 |
+|------|------|
+| 예산 | 15만원 (VAT 별도) |
+| 구성 | 파트너 1명 |
+| 가격 | 150,000원 / VAT 포함 165,000원 |
+| 대상 | 프리미엄 협찬을 가볍게 첫 경험해보고 싶은 캠핑장 |
+
+### 20-4. 단가 상향 반영 (누락 파일 수정)
+
+이전 세션에서 `packages.js`의 `PRICING` 상수는 수정되었으나, 아래 파일들에 구 단가가 하드코딩으로 남아 있어 이번에 수정.
+
+| 파일 | 필드/변수 | 구 값 | 신 값 |
+|------|-----------|-------|-------|
+| `netlify/functions/submit.js` | `PARTNER_PRICE` | 100,000 | 150,000 |
+| `netlify/functions/submit.js` | `RISING_PRICE` | 50,000 | 100,000 |
+| `netlify/functions/dashboard-modify.js` | `DEFAULT_UNIT_PRICES.partner` | 100,000 | 150,000 |
+| `netlify/functions/dashboard-modify.js` | `DEFAULT_UNIT_PRICES.rising` | 50,000 | 100,000 |
+| `src/components/CreatorGuideSheet.jsx` | 파트너 price 텍스트 | '10만원 / 1객실' | '15만원 / 1객실' |
+| `src/components/CreatorGuideSheet.jsx` | 라이징 price 텍스트 | '5만원 / 1객실' | '10만원 / 1객실' |
+| `src/pages/dashboard/components/ModifyCrewModal.jsx` | unitPrices fallback partner | 100,000 | 150,000 |
+| `src/pages/dashboard/components/ModifyCrewModal.jsx` | unitPrices fallback rising | 50,000 | 100,000 |
+
+### 20-5. 기타 변경
+
+- `PackageStep.jsx` 아이콘 등급 설명: `'10만+ 구독자 유튜버 · 인플루언서'` → `'10만+ 팔로워 크리에이터'` (아이콘 ≠ 유튜버)
+- `BudgetStep.jsx`: 15만원 옵션 추가 (`{ value: 15, label: '15만원', subtitle: '가볍게 시작해보고 싶은 캠핑장', emoji: '👋', color: '#A0AEC0' }`)
+- `agreements.js`: 구체적 금액 하드코딩 없음 → 수정 불필요 확인
+
+### 20-6. 기존 신청건 영향
+
+- **없음**. Airtable 레코드별 단가 필드(`아이콘 크리에이터 협찬 제안 금액`, `파트너 크리에이터 협찬 제안 금액`, `라이징 협찬 제안 금액`)가 코드 fallback보다 우선 적용.
+- `dashboard-modify.js`: `formFields['단가필드'] || DEFAULT_UNIT_PRICES` 구조
+- `ModifyCrewModal.jsx`: `application?.crew?.unitPrice || fallback` 구조
+- 대시보드 `selectedPlan` 필드는 표시 전용 (로직 의존 없음)
+
+### 20-7. Airtable 변경
+
+- `선택 예산` singleSelect에 `15만원` 옵션 추가
+- `선택플랜` singleSelect에 새 플랜명 10개 추가 (구 이름은 기존 데이터 보호를 위해 유지)
+
+### 20-8. 커밋
+
+| 커밋 | 내용 |
+|------|------|
+| `4ecd819` | feat: 플랜 이름 직관화 + 15만원 맛보기 티어 추가 + submit 단가 수정 |
+| `b7aa62a` | fix: 단가 상향 반영 누락 파일 3건 (CreatorGuideSheet, dashboard-modify, ModifyCrewModal) |
+
+---
+
 ## 18. 향후 개선 가능 사항
 
 - ~~디자인 토큰을 별도 상수 파일로 중앙화~~ → ✅ 완료 (`src/constants/designTokens.js`)
@@ -710,3 +835,4 @@ Content-Type: multipart/form-data (자동)
 - 대시보드 데이터 캐싱 (현재 매번 Airtable API 호출)
 - sessionStorage → httpOnly 쿠키 전환 (S-3, 개발팀 협의 필요)
 - `ModifyCrewModal.jsx` / `RefundModal.jsx` deprecated 파일 삭제 정리
+- 단가 변경 시 영향받는 파일 목록 관리 자동화 (현재 8개 파일에 분산되어 있어 누락 위험)
