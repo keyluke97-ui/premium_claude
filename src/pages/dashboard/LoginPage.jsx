@@ -13,6 +13,20 @@ const TYPE_BADGE = {
   partner: { label: '파트너', color: BRAND_GREEN, backgroundColor: `${BRAND_GREEN}12` },
 }
 
+/** CHANGED: 캠핑장명 표시 — names 배열이 있고 2개 이상이면 대표명 + 별칭 표시 */
+function displayAccommodationName(item) {
+  const names = item.names || [item.name]
+  if (names.length <= 1) return item.name
+  return item.name
+}
+
+/** 캠핑장명이 프리미엄/파트너에서 다를 때 보조 이름 표시 */
+function getAlternateNames(item) {
+  const names = item.names || [item.name]
+  if (names.length <= 1) return null
+  return names.slice(1)
+}
+
 /** 사업자번호 포맷: 000-00-00000 */
 function formatBusinessNumber(value) {
   const digits = value.replace(/[^0-9]/g, '').slice(0, 10)
@@ -245,8 +259,16 @@ export default function LoginPage() {
                           }}
                         >
                           <div className="flex items-center justify-between">
-                            <span>{item.name}</span>
-                            <div className="flex gap-1.5">
+                            <div className="flex-1 min-w-0">
+                              <span>{displayAccommodationName(item)}</span>
+                              {/* CHANGED: 프리미엄/파트너 캠핑장명이 다를 때 보조 이름 표시 */}
+                              {getAlternateNames(item) && (
+                                <p className="text-xs mt-0.5 truncate" style={{ color: TEXT_MUTED }}>
+                                  = {getAlternateNames(item).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5 flex-shrink-0 ml-2">
                               {item.types.map((typeEntry) => {
                                 const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
                                 return (
@@ -281,8 +303,16 @@ export default function LoginPage() {
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <span>{selectedAccommodation.name}</span>
-                      <div className="flex gap-1.5">
+                      <div className="flex-1 min-w-0">
+                        <span>{displayAccommodationName(selectedAccommodation)}</span>
+                        {/* CHANGED: 프리미엄/파트너 캠핑장명이 다를 때 보조 이름 표시 */}
+                        {getAlternateNames(selectedAccommodation) && (
+                          <p className="text-xs mt-0.5 truncate" style={{ color: TEXT_MUTED }}>
+                            = {getAlternateNames(selectedAccommodation).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0 ml-2">
                         {selectedAccommodation.types.map((typeEntry) => {
                           const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
                           return (

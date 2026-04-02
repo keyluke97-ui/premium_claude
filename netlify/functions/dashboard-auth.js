@@ -70,9 +70,9 @@ export default async (request) => {
       : [{ type: type === 'partner' ? 'partner' : 'premium', recordId }]
 
     // CHANGED: 연락처 검증 — typeEntries 중 하나라도 매칭되면 인증 성공
-    // [설계 의도] 같은 사업자번호의 캠핑장이므로, 프리미엄 또는 파트너 중
-    // 하나의 연락처만 매칭되면 전체 타입에 대한 인증을 통과시킴
-    // (운영자가 다를 수 있으나 같은 사업체로 판단)
+    // [설계 의도] lookup에서 연락처 기준으로 그룹핑했으므로,
+    // 같은 그룹 = 같은 운영자(같은 연락처)가 보장됨.
+    // 프리미엄/파트너 중 하나의 연락처만 매칭되면 전체 타입 인증 통과
     let phoneVerified = false
     const candidateRecordIds = {} // 연락처 검증 전 임시 저장
 

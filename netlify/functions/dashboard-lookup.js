@@ -18,16 +18,18 @@ function jsonResponse(body, status = 200) {
  * @param {string} apiKey - Airtable API Key
  * @param {string} baseId - Airtable Base ID
  * @param {string} type - 'premium' | 'partner'
- * @returns {Array} - [{ name, recordId, type }]
+ * @returns {Array} - [{ name, recordId, type, phone }]
  */
 async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey, baseId, type) {
   // CHANGED: 프리미엄은 SUBSTITUTE 필요 (하이픈 형식 저장), 파트너는 하이픈 없이 저장될 수 있음
   const filterFormula = encodeURIComponent(
     `SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}'`
   )
+  // CHANGED: phoneField도 함께 조회 — 연락처 기준 그룹핑에 사용
   const fieldsQuery = [
     'fields%5B%5D=' + encodeURIComponent(config.accommodationNameField),
     'fields%5B%5D=' + encodeURIComponent(config.businessNumberField),
+    'fields%5B%5D=' + encodeURIComponent(config.phoneField),
   ].join('&')
 
   const airtableUrl =
@@ -47,19 +49,23 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
     const { records } = await response.json()
     if (!records || records.length === 0) return []
 
-    // CHANGED: 동일 테이블 내 중복 캠핑장명 제거 (recordId는 첫 번째 것 사용)
-    const accommodationMap = new Map()
+    // CHANGED: 동일 테이블 내 중복 연락처 제거 (같은 전화번호면 동일 운영자)
+    const phoneMap = new Map()
     for (const record of records) {
       const name = record.fields[config.accommodationNameField] || ''
-      if (name && !accommodationMap.has(name)) {
-        accommodationMap.set(name, record.id)
+      const phone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
+      // 그룹핑 키: 연락처가 있으면 연락처, 없으면 캠핑장명 fallback
+      const groupKey = phone || name
+      if (name && !phoneMap.has(groupKey)) {
+        phoneMap.set(groupKey, { name, recordId: record.id, phone })
       }
     }
 
-    return Array.from(accommodationMap.entries()).map(([name, recordId]) => ({
-      name,
-      recordId,
+    return Array.from(phoneMap.values()).map((item) => ({
+      name: item.name,
+      recordId: item.recordId,
       type,
+      phone: item.phone,
     }))
   } catch (error) {
     console.error(`[lookup] ${type} 테이블 조회 에러:`, error.message)
@@ -117,20 +123,34 @@ export default async (request) => {
       return jsonResponse({ error: '해당 사업자 번호로 등록된 캠핑장이 없습니다.' }, 404)
     }
 
-    // CHANGED: 캠핑장명 기준으로 그룹핑 — 동일 캠핑장의 프리미엄/파트너를 하나로 묶음
+    // CHANGED: 연락처(전화번호) 기준으로 그룹핑 — 같은 운영자의 프리미엄/파트너를 하나로 묶음
+    // 캠핑장명은 프리미엄/파트너에서 다를 수 있지만 (오타, 지역명 접두사 등)
+    // 연락처가 같으면 동일 운영자로 판단
     const groupedMap = new Map()
     for (const item of flatItems) {
-      const existing = groupedMap.get(item.name)
+      // 그룹핑 키: 연락처가 있으면 연락처, 없으면 캠핑장명 fallback
+      const groupKey = item.phone || item.name
+      const existing = groupedMap.get(groupKey)
       if (existing) {
         existing.types.push({ type: item.type, recordId: item.recordId })
+        // CHANGED: 캠핑장명이 다를 경우 모든 이름을 보존 (프론트에서 표시용)
+        if (item.name && !existing.names.includes(item.name)) {
+          existing.names.push(item.name)
+        }
       } else {
-        groupedMap.set(item.name, {
+        groupedMap.set(groupKey, {
           name: item.name,
+          names: [item.name],
           types: [{ type: item.type, recordId: item.recordId }],
         })
       }
     }
-    const accommodations = Array.from(groupedMap.values())
+    // CHANGED: 클라이언트에 phone은 전송하지 않음 (보안)
+    const accommodations = Array.from(groupedMap.values()).map((group) => ({
+      name: group.name,
+      names: group.names,
+      types: group.types,
+    }))
 
     return jsonResponse({ success: true, accommodations })
   } catch (error) {
