@@ -1,6 +1,37 @@
-// dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능)
+// dashboard-refund.js - 환불 요청 (전체 모집 완료 전에만 가능) + 통장사본 이미지 업로드
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: sanitizeForFormula 제거 (오퍼 테이블 쿼리 삭제)
+
+// CHANGED: 통장사본 이미지를 Airtable attachment 필드에 업로드
+// Node.js 18 내장 FormData/Blob 사용 (외부 라이브러리 불필요)
+async function uploadBankStatement(apiKey, baseId, tableId, recordId, bankImageBase64) {
+  // base64 데이터 URI에서 MIME 타입 추출 및 순수 base64 분리
+  const mimeMatch = bankImageBase64.match(/^data:([^;]+);base64,/)
+  const mimeType = mimeMatch?.[1] || 'image/jpeg'
+  const rawExtension = mimeType.split('/')[1] || 'jpg'
+  const fileExtension = rawExtension === 'jpeg' ? 'jpg' : rawExtension
+  const rawBase64 = bankImageBase64.replace(/^data:[^;]+;base64,/, '')
+
+  const buffer = Buffer.from(rawBase64, 'base64')
+  const blob = new Blob([buffer], { type: mimeType })
+
+  const formData = new FormData()
+  // FormData.append(name, blob, filename) — Node.js 18 내장 지원
+  formData.append('file', blob, `bank_statement.${fileExtension}`)
+  formData.append('filename', `bank_statement.${fileExtension}`)
+
+  const uploadUrl =
+    `https://content.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}` +
+    `/${recordId}/${encodeURIComponent('통장사본')}/uploadAttachment`
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  })
+
+  return uploadResponse.ok
+}
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -18,11 +49,16 @@ export default async (request) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
+  // CHANGED: Item 8 - Rate Limiting 검사
+  const rateCheck = checkRateLimit(request)
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds, CORS_HEADERS)
+  }
+
   const API_KEY = process.env.AIRTABLE_API_KEY
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
-  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건'
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
@@ -39,11 +75,13 @@ export default async (request) => {
     return jsonResponse({ error: verification.error }, 401)
   }
 
-  const { recordId, accommodationName } = verification.payload
+  // CHANGED: JWT 구조 변경 대응 — premiumRecordId 우선, 하위 호환으로 recordId도 지원
+  const { premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
+  const recordId = premiumRecordId || legacyRecordId
 
   try {
-    // CHANGED: 환불 요청 시 계좌 정보 필드 추가 수신
-    const { reason, bankName, accountNumber, accountHolder } = await request.json()
+    // CHANGED: 환불 요청 시 계좌 정보 + 통장사본 base64 수신
+    const { reason, bankName, accountNumber, accountHolder, bankImageBase64 } = await request.json()
 
     if (!reason || reason.trim().length === 0) {
       return jsonResponse({ error: '환불 사유를 입력해주세요.' }, 400)
@@ -53,22 +91,12 @@ export default async (request) => {
       return jsonResponse({ error: '환불 계좌 정보(은행, 계좌번호, 예금주명)를 모두 입력해주세요.' }, 400)
     }
 
-    // CHANGED: P-1 - 순차 fetch → Promise.all 병렬 처리 (두 요청은 서로 독립적)
+    // CHANGED: 캠지기 모집 폼 레코드 단건 조회 (배정 인원 카운트 필드 포함)
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // CHANGED: P-2 - maxRecords=200 추가 (무제한 조회 방지)
-    const offerFilter = encodeURIComponent(
-      `{캠핑장명}='${sanitizeForFormula(accommodationName)}'`
-    )
-    const offerUrl =
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&maxRecords=200`
-
-    const [formResponse, offerResponse] = await Promise.all([
-      fetch(formRecordUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-      fetch(offerUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
-    ])
+    const formResponse = await fetch(formRecordUrl, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    })
 
     if (!formResponse.ok) {
       return jsonResponse({ error: '신청 정보를 찾을 수 없습니다.' }, 404)
@@ -82,12 +110,11 @@ export default async (request) => {
       (formFields['✔️ 모집 인원'] || 0) +
       (formFields['🔥 모집 인원'] || 0)
 
-    // 2) 배정된 크리에이터 수 집계
-    let totalAssigned = 0
-    if (offerResponse.ok) {
-      const offerData = await offerResponse.json()
-      totalAssigned = (offerData.records || []).length
-    }
+    // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
+    const totalAssigned =
+      (formFields['아이콘 크리에이터 신청 수'] || 0) +
+      (formFields['파트너 크리에이터 신청 수'] || 0) +
+      (formFields['라이징 크리에이터 신청 수'] || 0)
 
     // 3) 환불 가능 여부 확인: 전체 모집 완료 전에만 가능
     const isFullyRecruited = totalAssigned >= totalRequested && totalRequested > 0
@@ -95,6 +122,15 @@ export default async (request) => {
       return jsonResponse(
         { error: '모든 크리에이터가 배정 완료되어 환불이 불가능합니다.' },
         400
+      )
+    }
+
+    // CHANGED: 이미 환불 요청이 접수된 경우 중복 요청 차단
+    const existingRefundDate = formFields['환불 요청일']
+    if (existingRefundDate) {
+      return jsonResponse(
+        { error: '이미 환불 요청이 접수되어 있습니다. 담당자 확인 후 안내드리겠습니다.' },
+        409
       )
     }
 
@@ -130,12 +166,24 @@ export default async (request) => {
       return jsonResponse({ error: '환불 요청 저장에 실패했습니다.' }, 500)
     }
 
+    // CHANGED: 통장사본 이미지 업로드 (선택적 — 실패해도 환불 요청 자체는 성공 처리)
+    let imageUploaded = false
+    if (bankImageBase64) {
+      try {
+        imageUploaded = await uploadBankStatement(API_KEY, BASE_ID, FORM_TABLE, recordId, bankImageBase64)
+      } catch (uploadError) {
+        // 이미지 업로드 실패는 환불 요청 접수를 막지 않음
+        console.error('통장사본 업로드 실패:', uploadError.message)
+      }
+    }
+
     return jsonResponse({
       success: true,
       message: '환불 요청이 접수되었습니다. 담당자가 확인 후 연락드리겠습니다.',
       refundNote,
       totalRequested,
       totalAssigned,
+      imageUploaded,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)

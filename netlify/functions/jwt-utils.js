@@ -116,10 +116,62 @@ export function sanitizeForFormula(value) {
  * @returns {object}
  */
 export function buildCorsHeaders(methods) {
+  const origin = process.env.ALLOWED_ORIGIN || '*'
+  // CHANGED: Item 12 - ALLOWED_ORIGIN 미설정 시 콘솔 경고
+  if (origin === '*') {
+    console.warn('[CORS] ALLOWED_ORIGIN 환경변수가 설정되지 않아 모든 출처를 허용합니다. 프로덕션에서는 반드시 설정하세요.')
+  }
   return {
-    'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*', // CHANGED: S-2 - env로 CORS 출처 제한
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': methods,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json',
   }
+}
+
+// CHANGED: Item 8 - 인메모리 Rate Limiter (Netlify Functions 인스턴스 내 burst 방지)
+const rateLimitStore = new Map()
+const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1분
+const RATE_LIMIT_MAX_REQUESTS = 30 // 1분당 최대 요청 수
+
+/**
+ * IP 기반 간이 Rate Limiting 검사
+ * @param {Request} request
+ * @returns {{ allowed: boolean, retryAfterSeconds?: number }}
+ */
+export function checkRateLimit(request) {
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const now = Date.now()
+
+  const entry = rateLimitStore.get(clientIp)
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(clientIp, { windowStart: now, count: 1 })
+    return { allowed: true }
+  }
+
+  entry.count += 1
+
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfterSeconds = Math.ceil((entry.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000)
+    return { allowed: false, retryAfterSeconds }
+  }
+
+  return { allowed: true }
+}
+
+/**
+ * Rate Limit 초과 시 429 응답 생성
+ * @param {number} retryAfterSeconds
+ * @param {object} corsHeaders
+ * @returns {Response}
+ */
+export function rateLimitResponse(retryAfterSeconds, corsHeaders) {
+  return new Response(
+    JSON.stringify({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }),
+    {
+      status: 429,
+      headers: { ...corsHeaders, 'Retry-After': String(retryAfterSeconds) },
+    }
+  )
 }

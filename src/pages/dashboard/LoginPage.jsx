@@ -1,15 +1,31 @@
 // LoginPage.jsx - 캠지기 대시보드 로그인 (사업자번호 + 캠핑장 선택 + 연락처 뒷자리 4자리)
+// CHANGED: 캠핑장 그룹핑 UI — 동일 캠핑장의 프리미엄/파트너를 하나로 표시, types 배열 전달
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { lookupAccommodations, login, isAuthenticated } from '../../utils/dashboardApi'
+import { BRAND_GREEN, BACKGROUND_COLOR, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../constants/designTokens'
 
-const BRAND_GREEN = '#01DF82'
-const BACKGROUND_COLOR = '#111111'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
+// CHANGED: 협찬 유형별 배지 설정
+const TYPE_BADGE = {
+  premium: { label: '프리미엄', color: '#FFD700', backgroundColor: 'rgba(255,215,0,0.12)' },
+  partner: { label: '파트너', color: BRAND_GREEN, backgroundColor: `${BRAND_GREEN}12` },
+}
+
+/** CHANGED: 캠핑장명 표시 — names 배열이 있고 2개 이상이면 대표명 + 별칭 표시 */
+function displayAccommodationName(item) {
+  const names = item.names || [item.name]
+  if (names.length <= 1) return item.name
+  return item.name
+}
+
+/** 캠핑장명이 프리미엄/파트너에서 다를 때 보조 이름 표시 */
+function getAlternateNames(item) {
+  const names = item.names || [item.name]
+  if (names.length <= 1) return null
+  return names.slice(1)
+}
 
 /** 사업자번호 포맷: 000-00-00000 */
 function formatBusinessNumber(value) {
@@ -26,19 +42,21 @@ function extractDigits(formatted) {
 export default function LoginPage() {
   const navigate = useNavigate()
 
-  // 이미 인증된 상태라면 대시보드로 리다이렉트
-  if (isAuthenticated()) {
-    navigate('/dashboard', { replace: true })
-    return null
-  }
-
   const [step, setStep] = useState('input') // 'input' | 'select'
   const [businessNumber, setBusinessNumber] = useState('')
+  // CHANGED: 그룹핑된 캠핑장 배열 — { name, types: [{type, recordId}] }
   const [accommodations, setAccommodations] = useState([])
-  const [selectedAccommodation, setSelectedAccommodation] = useState('')
-  const [phoneLastFour, setPhoneLastFour] = useState('') // CHANGED: 연락처 뒷자리 4자리 state 추가
+  // CHANGED: 선택된 캠핑장 — { name, types: [{type, recordId}] }
+  const [selectedAccommodation, setSelectedAccommodation] = useState(null)
+  const [phoneLastFour, setPhoneLastFour] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [navigate])
 
   /** 1단계: 사업자번호로 캠핑장 조회 */
   const handleLookup = useCallback(async () => {
@@ -59,26 +77,28 @@ export default function LoginPage() {
         return
       }
 
-      // CHANGED: lookup 응답의 { name, recordId } 객체에서 name만 추출
-      const accommodationNames = data.accommodations.map((item) =>
-        typeof item === 'string' ? item : item.name
-      )
-      setAccommodations(accommodationNames)
+      // CHANGED: lookup 응답이 이미 그룹핑된 형태 { name, types: [{type, recordId}] }
+      const accommodationItems = data.accommodations.map((item) => {
+        // 하위 호환: 이전 형식 {name, recordId, type} → 새 형식으로 변환
+        if (!item.types && item.type) {
+          return { name: item.name, types: [{ type: item.type, recordId: item.recordId }] }
+        }
+        return item
+      })
+      setAccommodations(accommodationItems)
 
-      // CHANGED: 캠핑장이 1개여도 연락처 뒷자리 입력이 필요하므로 항상 Step 2로 이동
-      if (accommodationNames.length === 1) {
-        setSelectedAccommodation(accommodationNames[0])
+      if (accommodationItems.length === 1) {
+        setSelectedAccommodation(accommodationItems[0])
       }
       setStep('select')
-    } catch (error) {
-      setError(error.message)
+    } catch (lookupError) {
+      setError(lookupError.message)
     } finally {
       setLoading(false)
     }
   }, [businessNumber])
 
   /** 2단계: 캠핑장 선택 + 연락처 뒷자리 입력 후 로그인 */
-  // CHANGED: phoneLastFour 검증 추가
   const handleLogin = useCallback(
     async () => {
       setLoading(true)
@@ -86,9 +106,8 @@ export default function LoginPage() {
 
       try {
         const cleanDigits = extractDigits(businessNumber)
-        const name = selectedAccommodation
 
-        if (!name) {
+        if (!selectedAccommodation) {
           setError('캠핑장을 선택해주세요.')
           return
         }
@@ -99,10 +118,11 @@ export default function LoginPage() {
           return
         }
 
-        await login(cleanDigits, name, cleanPhone)
+        // CHANGED: types 배열 전달 (서버가 복수 타입 JWT 발급)
+        await login(cleanDigits, selectedAccommodation.name, cleanPhone, selectedAccommodation.types)
         navigate('/dashboard', { replace: true })
-      } catch (error) {
-        setError(error.message)
+      } catch (loginError) {
+        setError(loginError.message)
       } finally {
         setLoading(false)
       }
@@ -111,11 +131,10 @@ export default function LoginPage() {
   )
 
   /** Enter 키 처리 */
-  // CHANGED: Step 2 조건에 phoneLastFour 4자리 검증 추가
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !loading) {
       if (step === 'input') handleLookup()
-      else if (step === 'select' && selectedAccommodation && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
+      else if (step === 'select' && selectedAccommodation?.name && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
     }
   }
 
@@ -141,7 +160,7 @@ export default function LoginPage() {
               />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-white">프리미엄 협찬 대시보드</h1>
+          <h1 className="text-xl font-bold text-white">캠핏 협찬 대시보드</h1>
           <p className="text-sm mt-1" style={{ color: TEXT_MUTED }}>
             신청 현황과 크리에이터 배정을 확인하세요
           </p>
@@ -167,9 +186,7 @@ export default function LoginPage() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <label
-                  className="block text-sm font-medium text-white mb-2"
-                >
+                <label className="block text-sm font-medium text-white mb-2">
                   사업자 번호
                 </label>
                 <input
@@ -191,11 +208,8 @@ export default function LoginPage() {
                   autoFocus
                   disabled={loading}
                 />
-                <p
-                  className="text-xs mt-2"
-                  style={{ color: TEXT_MUTED }}
-                >
-                  프리미엄 협찬 신청 시 입력한 사업자 번호를 입력해주세요
+                <p className="text-xs mt-2" style={{ color: TEXT_MUTED }}>
+                  협찬 신청 시 입력한 사업자 번호를 입력해주세요
                 </p>
               </motion.div>
             ) : (
@@ -210,50 +224,76 @@ export default function LoginPage() {
                   <button
                     onClick={() => {
                       setStep('input')
-                      setSelectedAccommodation('')
-                      setPhoneLastFour('') // CHANGED: 뒤로가기 시 연락처 뒷자리도 초기화
+                      setSelectedAccommodation(null)
+                      setPhoneLastFour('')
                       setError('')
                     }}
-                    className="mr-2 p-1 rounded-lg"
+                    className="mr-2 p-2 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
                     style={{ color: TEXT_MUTED }}
+                    aria-label="이전 단계로"
                   >
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                       <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   </button>
-                  <span className="text-sm font-medium text-white">
-                    본인 확인
-                  </span>
+                  <span className="text-sm font-medium text-white">본인 확인</span>
                 </div>
 
-                {/* CHANGED: 캠핑장 선택 (여러 개인 경우만 표시) */}
+                {/* CHANGED: 캠핑장 선택 — 그룹핑된 형태, 뱃지 복수 표시 */}
                 {accommodations.length > 1 && (
                   <div className="space-y-2">
-                    {accommodations.map((name) => (
-                      <button
-                        key={name}
-                        onClick={() => {
-                          setSelectedAccommodation(name)
-                          setError('')
-                        }}
-                        className="w-full text-left px-4 py-3 rounded-xl text-sm transition-all"
-                        style={{
-                          backgroundColor:
-                            selectedAccommodation === name ? `${BRAND_GREEN}15` : '#252525',
-                          border: `1px solid ${
-                            selectedAccommodation === name ? BRAND_GREEN : BORDER_COLOR
-                          }`,
-                          color: selectedAccommodation === name ? BRAND_GREEN : '#FFFFFF',
-                        }}
-                      >
-                        {name}
-                      </button>
-                    ))}
+                    {accommodations.map((item) => {
+                      const isSelected = selectedAccommodation?.name === item.name
+                      return (
+                        <button
+                          key={item.types[0]?.recordId || item.name}
+                          onClick={() => {
+                            setSelectedAccommodation(item)
+                            setError('')
+                          }}
+                          className="w-full text-left px-4 py-3.5 rounded-xl text-sm transition-all min-h-[44px]"
+                          style={{
+                            backgroundColor: isSelected ? `${BRAND_GREEN}15` : '#252525',
+                            border: `1px solid ${isSelected ? BRAND_GREEN : BORDER_COLOR}`,
+                            color: isSelected ? BRAND_GREEN : '#FFFFFF',
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <span>{displayAccommodationName(item)}</span>
+                              {/* CHANGED: 프리미엄/파트너 캠핑장명이 다를 때 보조 이름 표시 */}
+                              {getAlternateNames(item) && (
+                                <p className="text-xs mt-0.5 truncate" style={{ color: TEXT_MUTED }}>
+                                  = {getAlternateNames(item).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5 flex-shrink-0 ml-2">
+                              {item.types.map((typeEntry) => {
+                                const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
+                                return (
+                                  <span
+                                    key={typeEntry.type}
+                                    className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                    style={{
+                                      color: badge.color,
+                                      backgroundColor: badge.backgroundColor,
+                                    }}
+                                  >
+                                    {badge.label}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
 
-                {/* CHANGED: 캠핑장이 1개인 경우 선택된 캠핑장명 표시 */}
-                {accommodations.length === 1 && (
+                {/* CHANGED: 캠핑장 1개 — 뱃지 복수 표시 */}
+                {accommodations.length === 1 && selectedAccommodation && (
                   <div
                     className="px-4 py-3 rounded-xl text-sm mb-4"
                     style={{
@@ -262,15 +302,40 @@ export default function LoginPage() {
                       color: BRAND_GREEN,
                     }}
                   >
-                    {selectedAccommodation}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <span>{displayAccommodationName(selectedAccommodation)}</span>
+                        {/* CHANGED: 프리미엄/파트너 캠핑장명이 다를 때 보조 이름 표시 */}
+                        {getAlternateNames(selectedAccommodation) && (
+                          <p className="text-xs mt-0.5 truncate" style={{ color: TEXT_MUTED }}>
+                            = {getAlternateNames(selectedAccommodation).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0 ml-2">
+                        {selectedAccommodation.types.map((typeEntry) => {
+                          const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
+                          return (
+                            <span
+                              key={typeEntry.type}
+                              className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{
+                                color: badge.color,
+                                backgroundColor: badge.backgroundColor,
+                              }}
+                            >
+                              {badge.label}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* CHANGED: 연락처 뒷자리 4자리 입력 필드 추가 */}
+                {/* 연락처 뒷자리 4자리 입력 필드 */}
                 <div className={accommodations.length > 1 ? 'mt-4' : ''}>
-                  <label
-                    className="block text-sm font-medium text-white mb-2"
-                  >
+                  <label className="block text-sm font-medium text-white mb-2">
                     연락처 뒷자리 4자리
                   </label>
                   <input
@@ -294,11 +359,8 @@ export default function LoginPage() {
                     autoFocus
                     disabled={loading}
                   />
-                  <p
-                    className="text-xs mt-2"
-                    style={{ color: TEXT_MUTED }}
-                  >
-                    프리미엄 협찬 신청 시 입력한 연락처의 뒷자리 4자리
+                  <p className="text-xs mt-2" style={{ color: TEXT_MUTED }}>
+                    협찬 신청 시 입력한 연락처의 뒷자리 4자리
                   </p>
                 </div>
               </motion.div>
@@ -320,58 +382,50 @@ export default function LoginPage() {
             )}
           </AnimatePresence>
 
-          {/* 확인 버튼 */}
-          <button
-            onClick={() => {
-              if (step === 'input') handleLookup()
-              else handleLogin()
-            }}
-            disabled={
+          {/* 로그인/다음 버튼 */}
+          {(() => {
+            const isButtonDisabled =
               loading ||
               (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-              (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-            }
-            className="w-full mt-5 py-3.5 rounded-xl text-base font-semibold transition-all"
-            style={{
-              backgroundColor:
-                loading ||
-                (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-                  ? '#333333'
-                  : BRAND_GREEN,
-              color:
-                loading ||
-                (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-                (step === 'select' && (!selectedAccommodation || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
-                  ? TEXT_MUTED
-                  : '#000000',
-              cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                확인 중...
-              </span>
-            ) : step === 'input' ? (
-              '다음'
-            ) : (
-              '로그인'
-            )}
-          </button>
+              (step === 'select' && (!selectedAccommodation?.name || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
+
+            return (
+              <button
+                onClick={() => {
+                  if (step === 'input') handleLookup()
+                  else handleLogin()
+                }}
+                disabled={isButtonDisabled}
+                className="w-full mt-5 py-3.5 rounded-xl text-base font-semibold transition-all"
+                style={{
+                  backgroundColor: isButtonDisabled ? '#333333' : BRAND_GREEN,
+                  color: isButtonDisabled ? TEXT_MUTED : '#000000',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    확인 중...
+                  </span>
+                ) : step === 'input' ? (
+                  '다음'
+                ) : (
+                  '로그인'
+                )}
+              </button>
+            )
+          })()}
         </motion.div>
 
         {/* 하단 안내 */}
-        <p
-          className="text-center text-xs mt-6"
-          style={{ color: TEXT_MUTED }}
-        >
+        <p className="text-center text-xs mt-6" style={{ color: TEXT_MUTED }}>
           문의사항은{' '}
           <a
-            href="https://pf.kakao.com/_Cxfnxfxj"
+            href="http://pf.kakao.com/_fBxaQG/chat"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: BRAND_GREEN }}

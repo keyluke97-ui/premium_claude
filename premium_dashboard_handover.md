@@ -1,6 +1,6 @@
 # 캠지기 프리미엄 협찬 대시보드 — 핸드오버 문서
 
-> **최종 작성일**: 2026-03-14 (로그인 3중 인증 + modify 로직 개선 반영)
+> **최종 작성일**: 2026-03-18 (플랜 이름 직관화 + 15만원 맛보기 티어 추가 + 단가 상향 반영)
 > **프로젝트 위치**: `camjigi_claude/premium_dashboard/`
 > **배포 플랫폼**: Netlify (SPA + Serverless Functions)
 > **GitHub**: `keyluke97-ui/premium_claude`
@@ -15,7 +15,7 @@
 |------|-----------|----------------------|
 | 사용자 | 캠지기 (캠핑장 운영자) — 신규 신청 | 캠지기 — 기존 신청 건 관리 |
 | 경로 | `/` | `/dashboard/login`, `/dashboard` |
-| 핵심 기능 | 프리미엄 협찬 신청 폼 (퍼널) | 신청 현황 조회, 인원 변경, 환불 요청 |
+| 핵심 기능 | 프리미엄 협찬 신청 폼 (퍼널) | 신청 현황 조회, 크리에이터 목록 확인, 인원 변경·환불 카카오 상담 |
 | 데이터 | Airtable 직접 호출 (프론트) | Netlify Functions → Airtable (백엔드) |
 | 인증 | 없음 | 사업자번호 + 캠핑장 선택 + 연락처 뒷자리 4자리 → JWT |
 
@@ -80,11 +80,13 @@ premium_dashboard/
 │   │       ├── LoginPage.jsx           # 로그인 페이지
 │   │       ├── DashboardPage.jsx       # 메인 대시보드
 │   │       └── components/
-│   │           ├── StatusCard.jsx      # 결제 현황 카드
+│   │           ├── StatusCard.jsx      # 결제 현황 카드 (입금 상태 분기 포함)
 │   │           ├── RecruitmentProgress.jsx  # 등급별 모집 진행률
 │   │           ├── CreatorList.jsx     # 배정 크리에이터 목록
-│   │           ├── ModifyCrewModal.jsx # 인원 변경 바텀시트 모달
-│   │           └── RefundModal.jsx     # 환불 요청 바텀시트 모달
+│   │           ├── KakaoGuideSheet.jsx # ★ 인원 변경 → 카카오톡 유도 바텀시트 (modify 전용)
+│   │           ├── RefundFlowModal.jsx # ★ 환불 전용 멀티스텝 모달 (전액/부분 분기)
+│   │           ├── ModifyCrewModal.jsx # ⚠️ deprecated — 미사용 (삭제 예정)
+│   │           └── RefundModal.jsx     # ⚠️ deprecated — 미사용 (삭제 예정)
 │   │
 │   ├── components/                     # 기존 퍼널용 컴포넌트
 │   │   ├── CreatorGuideSheet.jsx
@@ -101,7 +103,14 @@ premium_dashboard/
 ```
 
 **수정 가능 영역**: `src/pages/dashboard/`, `src/utils/dashboardApi.js`, `netlify/functions/dashboard-*.js`
-**수정 금지 영역**: `src/pages/FunnelPage.jsx`, `src/components/`, `src/data/`, `src/utils/airtable.js`, `netlify/functions/submit.js`
+**수정 주의 영역** (퍼널 공유 파일 — 대시보드 작업 시 의도치 않은 퍼널 영향 주의):
+- `src/data/packages.js` — 플랜 정의 (퍼널 + 대시보드 공유)
+- `src/components/CreatorGuideSheet.jsx` — 등급 안내 바텀시트
+- `src/components/steps/BudgetStep.jsx` — 예산 선택 스텝
+- `netlify/functions/submit.js` — 퍼널 제출 서버리스 함수
+**수정 금지 영역** (퍼널 코어 — 대시보드 작업 시 절대 건드리지 말 것):
+- `src/pages/FunnelPage.jsx` — 퍼널 메인 페이지
+- `src/utils/airtable.js` — 퍼널용 Airtable 유틸
 
 ---
 
@@ -179,29 +188,59 @@ premium_dashboard/
 ### 6.3 `GET /api/dashboard/data`
 - **파일**: `dashboard-data.js`
 - **인증**: `Authorization: Bearer {token}` 필수
-- **동작**: JWT에서 `recordId` 추출 → 3개 Airtable 테이블 조회
-  1. `캠지기 모집 폼` — 신청 정보 (인원, 가격, 상태)
-  2. `유료 오퍼 신청 건` — 크리에이터 배정 현황
-  3. `인플루언서 컨텐츠 업로드` — 콘텐츠 제출 현황
-- **출력**: 통합 대시보드 데이터 (신청 상태, 결제 금액, 모집 진행률, 크리에이터 목록)
+- **동작**: JWT에서 `recordId` + `accommodationName` 추출 → 2개 Airtable 테이블 **병렬** 조회 (`Promise.all`)
+  1. `캠지기 모집 폼` — 신청 정보 (인원, 가격, 상태, 입금 확인 여부)
+  2. `유료 오퍼 신청 건` — 크리에이터 배정 현황 (숙소명으로 FIND+ARRAYJOIN 필터, 취소 건 제외)
+- **출력**: 통합 대시보드 데이터
 
-### 6.4 `POST /api/dashboard/modify`
+주요 출력 필드 (신규 추가 포함):
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `application.paymentConfirmed` | boolean | Airtable `입금내역 확인` 체크박스 값 |
+| `application.requiredPaymentAmount` | number\|null | Airtable `실입금 필요 금액` 수식 필드 (VAT 포함) |
+| `creators[]` | array | 배정 크리에이터 목록 (채널명, 등급, 입실일, 사이트) |
+
+크리에이터 배열 아이템 구조:
+```json
+{
+  "offerId": "recXXX",
+  "channelName": "채널명",
+  "channelUrl": "https://...",
+  "grade": 3,
+  "gradeEmoji": "⭐️",
+  "gradeLabel": "아이콘",
+  "checkInDate": "2026-04-15",
+  "site": "A-1",
+  "contentLink": null
+}
+```
+> `checkInDate`나 `site`가 `null`이면 프론트에서 "조율 중" 표시.
+
+### 6.4 `POST /api/dashboard/modify` ⚠️ 프론트에서 미사용 (백엔드 유지)
 - **파일**: `dashboard-modify.js`
-- **인증**: Bearer token 필수
-- **입력**: `{ newCrew: { icon: 2, partner: 3, rising: 5 } }`
-- **동작**: 등급별 배정 인원 이하로는 감소 불가, 증가는 허용. 가격 차액 계산.
-- **배정 판단**: `캠지기 모집 폼`의 `신청 가능 인원` 수식 필드 기반. `배정 인원 = 모집 인원 - 신청 가능 인원`
-  - ~~기존: `유료 오퍼 신청 건` 테이블 카운팅~~ → **제거됨** (API 호출 1건 절감)
-  - 엣지케이스: 모집 인원 0 → 미사용 등급(배정 0), 필드 null → 전체 잠금, 음수 → `Math.max(0)` 보정
-- **출력**: `{ success: true, priceDifference: 50000, ... }`
-- **가격 로직**: 아이콘 30만, 파트너 10만, 라이징 5만 (VAT별도 ×1.1)
+- **상태**: 백엔드 파일은 유지되나, 프론트에서 더 이상 호출하지 않음
+- **전환 이유**: 인원 변경 프로세스가 카카오톡 상담 수기 처리로 변경됨 (2026-03-16)
+- **재활성화 시**: `dashboardApi.js`에 `modifyCrew()` 함수 재추가 + `DashboardPage.jsx`에 `ModifyCrewModal` 복원 필요
 
-### 6.5 `POST /api/dashboard/refund`
+### 6.5 `POST /api/dashboard/refund` ★ 전액 환불 전용 (재활성화됨)
 - **파일**: `dashboard-refund.js`
-- **인증**: Bearer token 필수
-- **입력**: `{ reason: "환불 사유" }`
-- **동작**: 전체 모집 완료 전에만 환불 가능. Airtable에 환불 요청 기록.
-- **출력**: `{ success: true, message: "...", refundNote: "...", totalRequested: 10, totalAssigned: 3 }`
+- **상태**: 전액 환불에 한해 프론트 `RefundFlowModal`에서 다시 호출 (2026-03-16 재활성화)
+- **입력**: `{ reason, bankName, accountNumber, accountHolder, bankImageBase64? }`
+  - `bankImageBase64`: 클라이언트에서 Canvas로 압축한 JPEG base64 데이터 URI (선택)
+- **동작**:
+  1. JWT 검증 → `recordId` 추출
+  2. 모집 폼 레코드 조회 → 환불 가능 여부 검사 (전체 배정 완료 시 차단, 중복 요청 차단)
+  3. Airtable PATCH — `비고`, `환불 은행`, `계좌번호`, `예금주명`, `환불 요청일` 저장
+  4. `bankImageBase64` 있으면 Airtable Content Upload API → `통장사본` attachment 필드에 업로드
+- **출력**: `{ success, message, refundNote, totalRequested, totalAssigned, imageUploaded }`
+- **이미지 업로드 URL 패턴**:
+  ```
+  POST https://content.airtable.com/v0/{BASE_ID}/{FORM_TABLE}/{recordId}/통장사본/uploadAttachment
+  ```
+  Node.js 18 내장 `FormData` / `Blob` 사용 (외부 패키지 불필요)
+- **이미지 업로드 실패 처리**: PATCH 성공 후 이미지 업로드 실패해도 환불 접수 자체는 성공 반환 (`imageUploaded: false`)
+- **부분 환불**: 이 API를 호출하지 않음 — `RefundFlowModal`에서 직접 카카오톡으로 연결
 
 ---
 
@@ -220,13 +259,16 @@ premium_dashboard/
 
 ### 등급 체계
 
-| 등급 번호 | 이름 | 이모지 | 단가 (VAT별도) |
-|-----------|------|--------|---------------|
-| 1 | 아이콘 | ⭐️ | 300,000원 |
-| 2 | 파트너 | ✔️ | 100,000원 |
-| 3 | 라이징 | 🔥 | 50,000원 |
+| 등급 번호 (Airtable) | 이름 | 이모지 | 단가 (VAT별도) |
+|----------------------|------|--------|---------------|
+| **3** | 아이콘 | ⭐️ | 300,000원 |
+| **2** | 파트너 | ✔️ | 150,000원 |
+| **1** | 라이징 | 🔥 | 100,000원 |
 
-VAT 포함 총액 = (아이콘수×30만 + 파트너수×10만 + 라이징수×5만) × 1.1
+> ⚠️ **Airtable 등급 번호는 숫자가 클수록 높은 등급** (아이콘=3, 라이징=1). 직관과 반대이므로 주의.
+> ⚠️ **단가 변경 이력**: 2026-03-18 이전 신청건은 구 단가 (파트너 100,000원, 라이징 50,000원)가 Airtable 레코드에 저장되어 있음. 코드의 fallback은 신규 신청에만 적용되며, 기존 레코드는 개별 단가 필드 값이 우선.
+
+VAT 포함 총액 = (아이콘수×30만 + 파트너수×15만 + 라이징수×10만) × 1.1
 
 ### 입금 계좌
 - 하나은행 225-910068-71204
@@ -288,42 +330,72 @@ VITE_AIRTABLE_TABLE_NAME=협찬신청
 - 캠핑장 여러 개일 때: 캠핑장 선택 UI + 연락처 뒷자리 입력
 - lookup 응답의 `{ name, recordId }` 객체에서 `name`만 추출하여 사용 (`typeof` 체크 포함)
 
-### DashboardPage.jsx (~300줄)
+### DashboardPage.jsx
 - JWT 유효성 확인 후 데이터 로딩
-- 3개 섹션 카드 + 2개 모달 + 카카오 문의 버튼
+- 3개 섹션 카드 + `KakaoGuideSheet`(인원 변경) + `RefundFlowModal`(환불) + 카카오 문의 버튼
+- `paymentConfirmed = false`일 때 상단에 주황 배너 표시 (`PaymentPendingBanner`)
+- **인원 변경 버튼** → `KakaoGuideSheet(type='modify')` 오픈 (카카오톡 상담 유도)
+- **환불 버튼** → `RefundFlowModal` 오픈 (전액/부분 선택 후 분기 처리)
+- State: `kakaoGuideType: 'modify' | null`, `showRefundModal: boolean`
 - 로그아웃 시 `clearAuth()` → `/dashboard/login`으로 이동
 
-### StatusCard.jsx (158줄)
-- 결제 금액, 입금 상태, 신청일, 등급별 인원 표시
-- 입금 계좌 정보 포함
+### StatusCard.jsx
+- 등급별 인원, 단가 표시
+- **입금 확인 완료** (`paymentConfirmed = true`): `실입금 필요 금액` 필드값을 "신청 금액 (VAT 포함)"으로 표시
+- **입금 미확인** (`paymentConfirmed = false`): 주황 경고 스타일 금액 + 하나은행 계좌 박스 + 카카오톡 입금 확인 요청 버튼
 
 ### RecruitmentProgress.jsx (143줄)
 - 등급별 모집 진행률을 프로그레스 바로 표시
 - 배정 인원 / 요청 인원 비율
 
-### CreatorList.jsx (223줄)
-- 배정된 크리에이터 목록 (이름, 등급, 콘텐츠 제출 상태)
-- 콘텐츠 미제출 시 회색, 제출 완료 시 그린 표시
+### CreatorList.jsx
+- 배정된 크리에이터 목록 (채널명, 등급 배지, 입실일, 사이트)
+- 등급 배지 컬러: 아이콘=골드(`#FFD700`), 파트너=브랜드그린, 라이징=오렌지(`#FF8C00`)
+- `checkInDate` 또는 `site`가 null이면 "조율 중" (오렌지 텍스트) 표시
 
-### ModifyCrewModal.jsx (408줄)
-- 바텀시트 모달 (Framer Motion spring 애니메이션: `damping: 25, stiffness: 300`)
-- 등급별 +/- 버튼으로 인원 조정
-- 변경 전후 가격 차액 실시간 계산
-- 미배정 슬롯 내에서만 변경 가능
+### KakaoGuideSheet.jsx ★
+- **인원 변경 전용** 바텀시트 (환불은 `RefundFlowModal`로 분리됨)
+- `type: 'modify'` 고정 사용 (`'refund'`는 더 이상 사용 안 함)
+- 인원 변경 안내 텍스트, 캠핑장 이름 자동 표시, 상담원 매칭 2~3 영업일 안내
+- "카카오톡 채널로 문의하기" 클릭 → `http://pf.kakao.com/_fBxaQG/chat` 새 탭 오픈 후 시트 닫힘
 
-### RefundModal.jsx (270줄)
-- 바텀시트 모달, destructive 컬러(`#FF6B6B`)
-- 환불 사유 입력 → 확인 → API 호출
-- 전체 모집 완료 전에만 환불 가능
+### RefundFlowModal.jsx ★ (신규)
+- **환불 전용 멀티스텝 모달** — 전액/부분 선택 → 각 플로우 분기
+- **Step 1 (select)**: 전액 / 부분 선택 화면
+- **Step 2a (full)**: 전액 환불 폼
+  - 환불 사유 (textarea)
+  - 환불 계좌 정보: 은행 select + 계좌번호(숫자만) + 예금주명
+  - 통장사본 이미지 업로드: 파일 선택 → Canvas API 압축(max 1920px, JPEG 0.75) → base64 변환 → 미리보기
+  - 제출 → `requestRefund()` 호출 → Step 3
+- **Step 2b (partial)**: 부분 환불 상담 정보 입력
+  - 현재 배정 현황 표시 (등급별)
+  - 남기고 싶은 인원 수 입력 (등급별, max = 현재 배정 수)
+  - 추가 요청사항 (선택)
+  - 상담 내용 미리보기 (`buildPartialRefundSummary`)
+  - "내용 복사 후 카카오톡 상담 시작" → `navigator.clipboard.writeText()` + 카카오톡 오픈
+- **Step 3 (success)**: 전액 환불 접수 완료 화면
+- Props: `{ recruitment, totalAssigned, accommodationName, onClose }`
+- `compressImage(file)`: Canvas 압축 유틸 (클라이언트, Netlify 6MB 제한 대응)
+- `buildPartialRefundSummary({...})`: 클립보드 복사용 텍스트 생성
+
+### ModifyCrewModal.jsx ⚠️ deprecated
+- 현재 import되지 않음. 삭제 예정. 복원 필요 시 `DashboardPage.jsx`에 import 추가 필요.
+
+### RefundModal.jsx ⚠️ deprecated
+- 현재 import되지 않음. 삭제 예정. 복원 필요 시 `DashboardPage.jsx`에 import 추가 필요.
 
 ---
 
 ## 11. 카카오톡 채널 연동
 
-대시보드 하단에 카카오톡 문의 버튼이 있다.
+대시보드 전반에 걸쳐 카카오톡 채널로 유도하는 구조로 운영된다.
 
-- **채널 URL**: `https://pf.kakao.com/_Cxfnxfxj`
+- **채널 URL**: `http://pf.kakao.com/_fBxaQG/chat`
 - 새 탭(`_blank`)으로 열림
+- 사용 위치:
+  - `StatusCard.jsx` — 입금 미확인 시 입금 확인 요청 버튼
+  - `KakaoGuideSheet.jsx` — 인원 변경·환불 요청 시 상담 연결 버튼
+  - `DashboardPage.jsx` ActionButtons 하단 문의 링크
 
 ---
 
@@ -517,11 +589,250 @@ netlify dev            # Vite dev server + Netlify Functions 에뮬레이션
 
 ---
 
-## 17. 향후 개선 가능 사항
+## 17. 기능 개선 이력 (2026-03-16, 크리에이터 목록 + 입금 게이트 + 카카오톡 전환)
+
+### 17-1. 크리에이터 목록 구현 (2-4 플로우)
+
+기존 `creators: []` 하드코딩을 실제 Airtable 데이터로 교체.
+
+| 항목 | 내용 |
+|------|------|
+| 데이터 소스 | `유료 오퍼 신청 건` 테이블 (`tblIV8Wk4SLx2Hh91`) |
+| 필터 조건 | 숙소명 일치 (`FIND+ARRAYJOIN`) AND `예약 취소/변경 != 취소` |
+| 핵심 필드 | `크리에이터 채널명`, `등급화 (lookup→number)`, `채널 URL (lookup→url)`, `입실일`, `입실 사이트` |
+| 등급 추출 | `multipleLookupValues` 타입 → 배열 반환 → `Array.isArray()` 첫 번째 요소 추출 |
+| 미배정 표시 | `checkInDate` / `site`가 null → "조율 중" (오렌지) |
+
+**수정 파일:**
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `netlify/functions/dashboard-data.js` | `mapOfferToCreator()` 함수 추가, `Promise.all` 병렬 조회, `sanitizeForFormula` 복구 |
+| `src/pages/dashboard/components/CreatorList.jsx` | 등급 배지 컬러 수정 (3=gold, 2=green, 1=orange), "조율 중" pending 표시 추가 |
+
+**⚠️ Airtable 필드명 특이사항:**
+- 숙소명 lookup 필드명: `숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))` — `오퍼ㅏ`의 `ㅏ`는 Airtable 원본의 오타. 실제 그대로 사용해야 함.
+- 등급 필드명: `등급화 (from 크리에이터 채널명 (크리에이터 명단)) (from 크리에이터 채널명(프리미엄 협찬 신청))` — 중첩 lookup이라 전체 필드명 그대로 사용.
+
+---
+
+### 17-2. 입금 게이트 + 결제 상태 표시
+
+`입금내역 확인` 체크박스 필드를 기준으로 대시보드 표시 분기.
+
+| 상태 | 표시 내용 |
+|------|-----------|
+| `paymentConfirmed = true` | 대시보드 정상, StatusCard에 "신청 금액 (VAT 포함)" 초록 표시 |
+| `paymentConfirmed = false` | 상단 주황 배너 + StatusCard에 주황 경고 금액 + 하나은행 계좌 안내 + 카카오톡 입금 확인 버튼 |
+
+**추가된 Airtable 필드:**
+
+| 필드명 | 타입 | API 키 | 설명 |
+|--------|------|--------|------|
+| `입금내역 확인` | checkbox | `paymentConfirmed` | 캠핏 내부에서 입금 확인 후 체크 |
+| `실입금 필요 금액` | formula | `requiredPaymentAmount` | VAT 포함 최종 금액 (Airtable 수식 필드) |
+
+**수정 파일:**
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `netlify/functions/dashboard-data.js` | `applicationData`에 두 필드 추가 |
+| `src/pages/dashboard/components/StatusCard.jsx` | `paymentConfirmed` 기준 분기 렌더링, `PaymentConfirmedSection` / `PaymentPendingSection` 분리 |
+| `src/pages/dashboard/DashboardPage.jsx` | `PaymentPendingBanner` 컴포넌트 추가 |
+
+---
+
+### 17-3. 인원 변경·환불 → 카카오톡 상담으로 전환 (2026-03-16 초기 전환)
+
+> ⚠️ **환불은 이후 §19에서 다시 시스템 처리 방식으로 전환됨. 이 섹션은 인원 변경만 해당.**
+
+기존 대시보드 내 시스템 처리에서 카카오톡 채널 상담 수기 처리로 변경.
+
+| 항목 | 기존 | 변경 후 |
+|------|------|---------|
+| 인원 변경 | `ModifyCrewModal` → `POST /api/dashboard/modify` | `KakaoGuideSheet(type='modify')` → 카카오톡 링크 |
+| 환불 요청 | `RefundModal` → `POST /api/dashboard/refund` | `KakaoGuideSheet(type='refund')` → 카카오톡 링크 (→ §19에서 재전환) |
+
+**수정/삭제 파일:**
+
+| 파일 | 상태 | 내용 |
+|------|------|------|
+| `src/pages/dashboard/components/KakaoGuideSheet.jsx` | **신규 생성** | 인원변경·환불 안내 바텀시트 |
+| `src/pages/dashboard/DashboardPage.jsx` | 수정 | ModifyCrewModal·RefundModal 제거, KakaoGuideSheet 추가 |
+| `src/utils/dashboardApi.js` | 수정 | `modifyCrew()`, `requestRefund()` 제거 |
+| `netlify/functions/dashboard-modify.js` | **유지** | 추후 시스템 전환 시 재활성화 가능 |
+| `netlify/functions/dashboard-refund.js` | **유지** | 추후 §19에서 재활성화됨 |
+
+---
+
+## 19. 기능 개선 이력 (2026-03-16, 환불 플로우 전면 개편)
+
+**배경**: §17-3에서 환불을 카카오톡 상담으로 전환했으나, 계좌 정보 수집·통장사본 업로드 요건이 추가되어 시스템 처리 방식으로 재전환. 전액/부분 환불 분기가 새롭게 설계됨.
+
+### 19-1. 설계 결정사항
+
+| 이슈 | 결정 | 이유 |
+|------|------|------|
+| 전액/부분 분기 기준 | 캠지기가 직접 선택 | 자동 감지보다 의도 명확 |
+| 통장사본 저장 방식 | Airtable Upload API (attachment) | 외부 스토리지 의존성 없음 |
+| 부분 환불 처리 방식 | 정보 입력 페이지 → 카카오톡 연결 (클립보드 복사) | 카카오톡 URL로 메시지 prefill 불가, 안내 정보 정형화 필요 |
+| 예약(인원) 변경 | 기존 `KakaoGuideSheet(modify)` 유지 | 변경 없음 |
+
+### 19-2. 환불 플로우 아키텍처
+
+```
+[캠지기] "환불 요청" 버튼 클릭
+    ↓
+[RefundFlowModal] Step 1: 전액 / 부분 선택
+    ↓                               ↓
+Step 2a (전액 환불)           Step 2b (부분 환불)
+  ├─ 환불 사유 입력               ├─ 현재 배정 현황 표시
+  ├─ 계좌 정보 입력               ├─ 남길 인원 수 입력 (등급별)
+  ├─ 통장사본 이미지 선택         ├─ 추가 요청사항 입력
+  │   └─ Canvas 압축 → base64    ├─ 상담 내용 미리보기
+  └─ 제출                         └─ "복사 후 카카오톡 상담" 버튼
+       ↓                               └─ clipboard.writeText() + 카카오톡 오픈
+  POST /api/dashboard/refund
+    ├─ 텍스트 필드 PATCH
+    └─ 이미지 업로드 (Airtable Content API)
+       ↓
+   Step 3 (완료)
+```
+
+### 19-3. 이미지 업로드 흐름
+
+**클라이언트 (RefundFlowModal.jsx)**:
+1. 사용자가 파일 선택
+2. `compressImage(file)`: Canvas API → JPEG 0.75 / max 1920px → base64 data URI 반환
+3. 이미지 미리보기 표시 (`<img src={imageBase64}>`)
+4. 제출 시 `bankImageBase64`로 서버에 전송
+
+**서버 (dashboard-refund.js)**:
+1. base64에서 MIME 타입 추출, 파일 확장자 결정
+2. `Buffer.from(rawBase64, 'base64')` → `new Blob([buffer])`
+3. `FormData.append('file', blob, 'bank_statement.jpg')` → Airtable Content Upload API
+4. 업로드 실패 시 `console.error`만 남기고 환불 접수 성공 반환
+
+**Airtable Upload URL**:
+```
+POST https://content.airtable.com/v0/{BASE_ID}/{FORM_TABLE}/{recordId}/통장사본/uploadAttachment
+Authorization: Bearer {API_KEY}
+Content-Type: multipart/form-data (자동)
+```
+
+### 19-4. 수정/신규 파일 요약
+
+| 파일 | 변경 유형 | 주요 변경 내용 |
+|------|-----------|---------------|
+| `netlify/functions/dashboard-refund.js` | 수정 | `bankImageBase64` 수신, `uploadBankStatement()` 헬퍼 추가, Airtable attachment 업로드 |
+| `src/utils/dashboardApi.js` | 수정 | `requestRefund()` 재추가 (`bankImageBase64` 포함) |
+| `src/pages/dashboard/DashboardPage.jsx` | 수정 | `showRefundModal` state 추가, `handleOpenRefund` → `setShowRefundModal(true)`, `RefundFlowModal` 렌더링 추가 |
+| `src/pages/dashboard/components/RefundFlowModal.jsx` | **신규 생성** | 전액/부분 분기 멀티스텝 모달 (4개 Step 컴포넌트) |
+
+**커밋**: `82968a0a5120513a7853ad83b2e8905887455549`
+
+### 19-5. Airtable 신규 필드
+
+환불 처리를 위해 `캠지기 모집 폼` 테이블에 아래 필드가 기존에 존재해야 함:
+
+| 필드명 | 타입 | 저장 내용 |
+|--------|------|-----------|
+| `환불 은행` | text | 은행명 |
+| `계좌번호` | text | 계좌번호 (하이픈 없이) |
+| `예금주명` | text | 예금주 이름 |
+| `환불 요청일` | date | ISO 8601 (환불 접수 시 자동 기록) |
+| `통장사본` | attachment | 이미지 파일 (Airtable Content Upload API) |
+
+### 19-6. 주의사항
+
+- **부분 환불 API 없음**: 부분 환불은 서버 처리 없이 클라이언트에서 정보 수집 → 카카오톡 전달만 함. 별도 API 불필요.
+- **이미지 업로드 실패 처리**: 업로드 실패해도 환불 텍스트 필드는 이미 저장된 상태. `imageUploaded: false`로 응답. 별도 알림 없음.
+- **중복 환불 차단**: `환불 요청일` 필드에 값이 있으면 `409` 반환. 동일 레코드로 두 번 환불 접수 불가.
+- **KakaoGuideSheet `type='refund'`는 더 이상 사용 안 함**: `DashboardPage.jsx`에서 `kakaoGuideType`은 이제 `'modify' | null`만 사용.
+
+---
+
+## 20. 플랜 이름 직관화 + 15만원 맛보기 티어 추가 + 단가 상향 반영 (2026-03-18)
+
+### 20-1. 변경 배경
+
+기존 플랜 이름(시그니처, 밸런스, 웨이브, 매스 등)이 50~60대 캠지기에게 직관적이지 않아 한글 중심으로 전면 리네이밍. 동시에 15만원 맛보기 티어 신설, 파트너·라이징 단가 상향 반영.
+
+### 20-2. 플랜 이름 변경 매핑
+
+| 예산 | 구 이름 | 새 이름 | ID 변경 |
+|------|---------|---------|---------|
+| 70만 | (없음, 신규 조합) | 올인원 플랜 | `allinone-70` |
+| 70만 | 더블 아이콘 | 대박 아이콘 플랜 | `doubleicon-70` → `bigicon-70` |
+| 70만 | 매스 플랜 | 물량 라이징 플랜 | `mass-70` → `volume-70` |
+| 50만 | 시그니처 플랜 | 베스트 플랜 | `signature-50` → `best-50` |
+| 50만 | 밸런스 플랜 | 알찬 프로 플랜 | `balance-50` → `rich-50` |
+| 50만 | 웨이브 플랜 | 확산 플랜 | `wave-50` → `spread-50` |
+| 30만 | 원픽 플랜 | 원픽 플랜 (유지) | `onepick-30` (유지) |
+| 30만 | 듀오 플랜 | 실속 파트너 플랜 | `duo-30` → `value-30` |
+| 30만 | 입문 스타터 | 입문 플랜 | `triple-30` → `beginner-30` |
+| **15만 (신규)** | — | **맛보기 플랜** | `taste-15` |
+
+### 20-3. 15만원 맛보기 티어 추가
+
+| 항목 | 내용 |
+|------|------|
+| 예산 | 15만원 (VAT 별도) |
+| 구성 | 파트너 1명 |
+| 가격 | 150,000원 / VAT 포함 165,000원 |
+| 대상 | 프리미엄 협찬을 가볍게 첫 경험해보고 싶은 캠핑장 |
+
+### 20-4. 단가 상향 반영 (누락 파일 수정)
+
+이전 세션에서 `packages.js`의 `PRICING` 상수는 수정되었으나, 아래 파일들에 구 단가가 하드코딩으로 남아 있어 이번에 수정.
+
+| 파일 | 필드/변수 | 구 값 | 신 값 |
+|------|-----------|-------|-------|
+| `netlify/functions/submit.js` | `PARTNER_PRICE` | 100,000 | 150,000 |
+| `netlify/functions/submit.js` | `RISING_PRICE` | 50,000 | 100,000 |
+| `netlify/functions/dashboard-modify.js` | `DEFAULT_UNIT_PRICES.partner` | 100,000 | 150,000 |
+| `netlify/functions/dashboard-modify.js` | `DEFAULT_UNIT_PRICES.rising` | 50,000 | 100,000 |
+| `src/components/CreatorGuideSheet.jsx` | 파트너 price 텍스트 | '10만원 / 1객실' | '15만원 / 1객실' |
+| `src/components/CreatorGuideSheet.jsx` | 라이징 price 텍스트 | '5만원 / 1객실' | '10만원 / 1객실' |
+| `src/pages/dashboard/components/ModifyCrewModal.jsx` | unitPrices fallback partner | 100,000 | 150,000 |
+| `src/pages/dashboard/components/ModifyCrewModal.jsx` | unitPrices fallback rising | 50,000 | 100,000 |
+
+### 20-5. 기타 변경
+
+- `PackageStep.jsx` 아이콘 등급 설명: `'10만+ 구독자 유튜버 · 인플루언서'` → `'10만+ 팔로워 크리에이터'` (아이콘 ≠ 유튜버)
+- `BudgetStep.jsx`: 15만원 옵션 추가 (`{ value: 15, label: '15만원', subtitle: '가볍게 시작해보고 싶은 캠핑장', emoji: '👋', color: '#A0AEC0' }`)
+- `agreements.js`: 구체적 금액 하드코딩 없음 → 수정 불필요 확인
+
+### 20-6. 기존 신청건 영향
+
+- **없음**. Airtable 레코드별 단가 필드(`아이콘 크리에이터 협찬 제안 금액`, `파트너 크리에이터 협찬 제안 금액`, `라이징 협찬 제안 금액`)가 코드 fallback보다 우선 적용.
+- `dashboard-modify.js`: `formFields['단가필드'] || DEFAULT_UNIT_PRICES` 구조
+- `ModifyCrewModal.jsx`: `application?.crew?.unitPrice || fallback` 구조
+- 대시보드 `selectedPlan` 필드는 표시 전용 (로직 의존 없음)
+
+### 20-7. Airtable 변경
+
+- `선택 예산` singleSelect에 `15만원` 옵션 추가
+- `선택플랜` singleSelect에 새 플랜명 10개 추가 (구 이름은 기존 데이터 보호를 위해 유지)
+
+### 20-8. 커밋
+
+| 커밋 | 내용 |
+|------|------|
+| `4ecd819` | feat: 플랜 이름 직관화 + 15만원 맛보기 티어 추가 + submit 단가 수정 |
+| `b7aa62a` | fix: 단가 상향 반영 누락 파일 3건 (CreatorGuideSheet, dashboard-modify, ModifyCrewModal) |
+
+---
+
+## 18. 향후 개선 가능 사항
 
 - ~~디자인 토큰을 별도 상수 파일로 중앙화~~ → ✅ 완료 (`src/constants/designTokens.js`)
+- ~~환불 시스템 처리 + 통장사본 업로드~~ → ✅ 완료 (`RefundFlowModal.jsx` + `dashboard-refund.js`)
+- ~~전액/부분 환불 분기 UI~~ → ✅ 완료 (`RefundFlowModal` 멀티스텝)
+- ~~에러 바운더리 추가 (React ErrorBoundary)~~ → ✅ 완료 (`DashboardErrorBoundary`)
 - JWT 리프레시 토큰 도입 (현재 24시간 만료 후 재로그인 필요)
 - 크리에이터 콘텐츠 미리보기 기능
 - 대시보드 데이터 캐싱 (현재 매번 Airtable API 호출)
-- ~~에러 바운더리 추가 (React ErrorBoundary)~~ → ✅ 완료 (`DashboardErrorBoundary`)
 - sessionStorage → httpOnly 쿠키 전환 (S-3, 개발팀 협의 필요)
+- `ModifyCrewModal.jsx` / `RefundModal.jsx` deprecated 파일 삭제 정리
+- 단가 변경 시 영향받는 파일 목록 관리 자동화 (현재 8개 파일에 분산되어 있어 누락 위험)

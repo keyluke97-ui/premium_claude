@@ -47,12 +47,12 @@ export default async (req) => {
 
   try {
     const body = await req.json()
-    const { budget, formData, crew, planTier } = body
+    const { budget, formData, crew, planTier, selectedPlan } = body
 
     // 고정 단가
     const ICON_PRICE = 300000
-    const PARTNER_PRICE = 100000
-    const RISING_PRICE = 50000
+    const PARTNER_PRICE = 150000 // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
+    const RISING_PRICE = 100000 // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
 
     const payload = {
       records: [
@@ -89,6 +89,10 @@ export default async (req) => {
 
             // 숙소 특장점
             '숙소의 특장점': formData.promotion || '',
+
+            // 첫 신청 할인
+            '첫신청할인': selectedPlan?.isDiscounted || false,
+            '할인전금액': selectedPlan?.originalPrice || 0,
 
             // 동의 & 비고
             '동의합니다.': '동의',

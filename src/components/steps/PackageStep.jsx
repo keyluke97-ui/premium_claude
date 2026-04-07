@@ -1,8 +1,8 @@
-// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar 포함)
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp } from 'lucide-react'
-import PACKAGES, { PRICING, calcCrewPrice, calcCrewPriceWithVat } from '../../data/packages'
+// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar + 첫 신청 할인 포함)
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp, Search, BadgePercent } from 'lucide-react'
+import PACKAGES, { PRICING, DISCOUNT_PRICING, calcCrewPrice, calcCrewPriceWithVat, computeDiscountedPlan } from '../../data/packages'
 import CreatorGuideSheet from '../CreatorGuideSheet'
 
 function formatPrice(number) {
@@ -32,8 +32,8 @@ const TIER_ICONS = {
   rising: TrendingUp,
 }
 
-// CHANGED: 등급별 단가 요약 바 컴포넌트
-function TierSummaryBar() {
+// 등급별 단가 요약 바 컴포넌트 (할인 표시 지원)
+function TierSummaryBar({ isFirstTime }) {
   return (
     <div
       className="flex items-center justify-between rounded-xl px-4 py-3 mb-5"
@@ -42,6 +42,7 @@ function TierSummaryBar() {
       {Object.entries(PRICING).map(([key, tier], index) => {
         const TierIcon = TIER_ICONS[key]
         const tierColor = TIER_COLORS[key]
+        const discountPrice = DISCOUNT_PRICING[key]?.price
         return (
           <div key={key} className="flex items-center gap-1.5">
             {index > 0 && (
@@ -49,7 +50,14 @@ function TierSummaryBar() {
             )}
             <TierIcon size={13} color={tierColor} />
             <span className="text-xs font-semibold" style={{ color: tierColor }}>{tier.label}</span>
-            <span className="text-xs font-bold text-white">{formatPriceShort(tier.price)}</span>
+            {isFirstTime ? (
+              <span className="flex items-center gap-1">
+                <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatPriceShort(tier.price)}</span>
+                <span className="text-xs font-bold" style={{ color: '#01DF82' }}>{formatPriceShort(discountPrice)}</span>
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-white">{formatPriceShort(tier.price)}</span>
+            )}
           </div>
         )
       })}
@@ -142,6 +150,60 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
   const [showGuide, setShowGuide] = useState(false)
 
+  // 첫 신청 할인 관련 상태
+  const [bizNumber, setBizNumber] = useState('')
+  const [bizChecked, setBizChecked] = useState(false)
+  const [isFirstTime, setIsFirstTime] = useState(false)
+  const [bizLoading, setBizLoading] = useState(false)
+  const [bizError, setBizError] = useState('')
+
+  // sessionStorage에서 복원 (뒤로가기 시)
+  useEffect(() => {
+    const savedBiz = sessionStorage.getItem('bizNumber')
+    const savedFirstTime = sessionStorage.getItem('isFirstTime')
+    if (savedBiz) {
+      setBizNumber(savedBiz)
+      setBizChecked(true)
+      setIsFirstTime(savedFirstTime === 'true')
+    }
+  }, [])
+
+  const handleBizCheck = async () => {
+    const clean = bizNumber.replace(/[^0-9]/g, '')
+    if (!/^\d{10}$/.test(clean)) {
+      setBizError('올바른 사업자 번호를 입력해주세요 (예: 123-45-67890)')
+      return
+    }
+
+    setBizLoading(true)
+    setBizError('')
+    try {
+      const res = await fetch('/api/check-first-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessNumber: bizNumber }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setBizError(data.error || '조회 중 오류가 발생했습니다.')
+        return
+      }
+      setBizChecked(true)
+      setIsFirstTime(data.isFirstTime)
+      sessionStorage.setItem('bizNumber', bizNumber)
+      sessionStorage.setItem('isFirstTime', String(data.isFirstTime))
+      // 이미 선택된 플랜이 있으면 할인 적용/해제
+      if (selected && selected.id !== 'custom') {
+        const originalPlan = pkg?.plans?.find(p => p.id === selected.id) || selected
+        onSelect(data.isFirstTime ? computeDiscountedPlan(originalPlan) : originalPlan)
+      }
+    } catch {
+      setBizError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      setBizLoading(false)
+    }
+  }
+
   if (!pkg && !isDirectCustom) return null
 
   const handleCustomToggle = () => {
@@ -167,7 +229,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
   const handlePlanSelect = (plan) => {
     setIsCustom(false)
-    onSelect(plan)
+    onSelect(isFirstTime ? computeDiscountedPlan(plan) : plan)
   }
 
   const customTotal = customCrew ? calcCrewPrice(customCrew) : 0
@@ -207,8 +269,81 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* CHANGED: 등급별 단가 요약 바 추가 */}
-      <TierSummaryBar />
+      {/* 사업자번호 입력 + 첫 신청 조회 */}
+      <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <label className="text-xs font-semibold mb-2 block" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          사업자 번호를 입력하면 첫 신청 할인 여부를 확인해드려요
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={bizNumber}
+            onChange={(e) => {
+              setBizNumber(e.target.value)
+              if (bizChecked) {
+                setBizChecked(false)
+                setIsFirstTime(false)
+                sessionStorage.removeItem('bizNumber')
+                sessionStorage.removeItem('isFirstTime')
+              }
+            }}
+            placeholder="123-45-67890"
+            className="flex-1 text-sm text-white"
+            style={{
+              padding: '10px 14px',
+              borderRadius: 10,
+              border: `1.5px solid ${bizError ? '#FF383C' : 'rgba(255,255,255,0.12)'}`,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleBizCheck}
+            disabled={bizLoading || !bizNumber.trim()}
+            className="px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+            style={{
+              backgroundColor: bizLoading || !bizNumber.trim() ? 'rgba(255,255,255,0.08)' : '#01DF82',
+              color: bizLoading || !bizNumber.trim() ? 'rgba(255,255,255,0.3)' : '#000',
+              border: 'none',
+              cursor: bizLoading || !bizNumber.trim() ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Search size={13} />
+            {bizLoading ? '조회중...' : '조회'}
+          </button>
+        </div>
+        {bizError && (
+          <p className="text-xs mt-1.5" style={{ color: '#FF383C' }}>{bizError}</p>
+        )}
+        <AnimatePresence>
+          {bizChecked && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2"
+              style={{
+                backgroundColor: isFirstTime ? 'rgba(1,223,130,0.1)' : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${isFirstTime ? 'rgba(1,223,130,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                color: isFirstTime ? '#01DF82' : 'rgba(255,255,255,0.6)',
+              }}
+            >
+              {isFirstTime ? (
+                <>
+                  <BadgePercent size={14} />
+                  첫 신청 할인이 적용됩니다! 모든 플랜에 할인가가 반영돼요.
+                </>
+              ) : (
+                '기존 신청 이력이 있습니다. 정가가 적용됩니다.'
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 등급별 단가 요약 바 */}
+      <TierSummaryBar isFirstTime={isFirstTime} />
 
       {/* 직접 선택 모드: 크루 카운터만 표시 */}
       {isDirectCustom && (
@@ -309,10 +444,26 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                 <BreakdownLine crew={plan.crew} />
 
                 <div className="text-sm mt-3 mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{plan.effect}</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-base font-bold" style={{ color: plan.accent }}>{formatPrice(plan.price)}</span>
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>VAT 포함 {formatPrice(plan.priceWithVat)}</span>
-                </div>
+                {isFirstTime ? (() => {
+                  const discounted = computeDiscountedPlan(plan)
+                  return (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}>첫 신청 할인</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm line-through" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatPrice(plan.price)}</span>
+                        <span className="text-base font-bold" style={{ color: '#01DF82' }}>{formatPrice(discounted.price)}</span>
+                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>VAT 포함 {formatPrice(discounted.priceWithVat)}</span>
+                      </div>
+                    </div>
+                  )
+                })() : (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-base font-bold" style={{ color: plan.accent }}>{formatPrice(plan.price)}</span>
+                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>VAT 포함 {formatPrice(plan.priceWithVat)}</span>
+                  </div>
+                )}
               </div>
 
               {/* 선택됨 표시 */}

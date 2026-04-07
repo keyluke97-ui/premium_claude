@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText } from 'lucide-react' // CHANGED: FileText 아이콘 추가 (사업자 번호용)
+import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText } from 'lucide-react'
 
 const REGIONS = [
   '경기도(서울, 인천 포함)',
@@ -57,6 +58,15 @@ const fields = [
 const SITE_TYPES = ['오토캠핑', '글램핑', '카라반', '두가족존', '방갈로', '차박']
 
 export default function InfoStep({ data, onChange, errors }) {
+  // PackageStep에서 입력한 사업자번호를 sessionStorage에서 복원
+  const savedBizNumber = typeof window !== 'undefined' ? sessionStorage.getItem('bizNumber') : null
+
+  useEffect(() => {
+    if (savedBizNumber && !data.businessNumber) {
+      onChange('businessNumber', savedBizNumber)
+    }
+  }, [])
+
   const selectedSiteTypes = data.siteTypes || []
 
   const toggleSiteType = (type) => {
@@ -98,30 +108,39 @@ export default function InfoStep({ data, onChange, errors }) {
                 {field.label}
                 {field.required && <span style={{ color: '#FF383C' }}>*</span>}
               </label>
-              <input
-                type={field.type || 'text'}
-                value={data[field.key] || ''}
-                onChange={(e) => onChange(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                className="w-full text-base text-white transition-colors duration-200"
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  border: `1.5px solid ${hasError ? '#FF383C' : 'rgba(255,255,255,0.12)'}`,
-                  backgroundColor: 'rgba(255,255,255,0.05)',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = hasError ? '#FF383C' : '#01DF82'
-                  e.target.style.boxShadow = hasError
-                    ? '0 0 0 3px rgba(255,56,60,0.15)'
-                    : '0 0 0 3px rgba(1,223,130,0.15)'
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = hasError ? '#FF383C' : 'rgba(255,255,255,0.12)'
-                  e.target.style.boxShadow = 'none'
-                }}
-              />
+              {(() => {
+                const isBizReadOnly = field.key === 'businessNumber' && !!savedBizNumber
+                return (
+                  <input
+                    type={field.type || 'text'}
+                    value={data[field.key] || ''}
+                    onChange={(e) => !isBizReadOnly && onChange(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    readOnly={isBizReadOnly}
+                    className="w-full text-base text-white transition-colors duration-200"
+                    style={{
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: `1.5px solid ${hasError ? '#FF383C' : 'rgba(255,255,255,0.12)'}`,
+                      backgroundColor: isBizReadOnly ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
+                      outline: 'none',
+                      opacity: isBizReadOnly ? 0.6 : 1,
+                      cursor: isBizReadOnly ? 'default' : 'text',
+                    }}
+                    onFocus={(e) => {
+                      if (isBizReadOnly) return
+                      e.target.style.borderColor = hasError ? '#FF383C' : '#01DF82'
+                      e.target.style.boxShadow = hasError
+                        ? '0 0 0 3px rgba(255,56,60,0.15)'
+                        : '0 0 0 3px rgba(1,223,130,0.15)'
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = hasError ? '#FF383C' : 'rgba(255,255,255,0.12)'
+                      e.target.style.boxShadow = 'none'
+                    }}
+                  />
+                )
+              })()}
               {hasError && (
                 <div className="flex items-center gap-1 mt-1.5 text-xs" style={{ color: '#FF383C' }}>
                   <AlertCircle size={12} />

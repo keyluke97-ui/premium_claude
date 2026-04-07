@@ -1,14 +1,24 @@
 // dashboardApi.js - 캠지기 대시보드 전용 API 클라이언트
+// CHANGED: 복수 협찬 유형(프리미엄+파트너) 탭 전환 지원으로 전면 리팩토링
 
 const API_BASE = ''
 
-/** 토큰 저장/조회/삭제 */
+/** sessionStorage 키 */
 const TOKEN_KEY = 'camjigi_dashboard_token'
 const ACCOMMODATION_KEY = 'camjigi_accommodation_name'
+// CHANGED: 단일 TYPE_KEY 대신 AVAILABLE_TYPES_KEY로 변경 (복수 유형 지원)
+const AVAILABLE_TYPES_KEY = 'camjigi_dashboard_available_types'
 
-export function saveAuth(token, accommodationName) {
+/** 인증 정보 저장 */
+// CHANGED: availableTypes 배열을 JSON으로 저장
+export function saveAuth(token, accommodationName, availableTypes) {
   sessionStorage.setItem(TOKEN_KEY, token)
   sessionStorage.setItem(ACCOMMODATION_KEY, accommodationName)
+  if (Array.isArray(availableTypes) && availableTypes.length > 0) {
+    sessionStorage.setItem(AVAILABLE_TYPES_KEY, JSON.stringify(availableTypes))
+  }
+  // CHANGED: 레거시 키 명시적 정리 (혼재 세션 방지)
+  sessionStorage.removeItem('camjigi_dashboard_type')
 }
 
 export function getToken() {
@@ -19,9 +29,34 @@ export function getAccommodationName() {
   return sessionStorage.getItem(ACCOMMODATION_KEY)
 }
 
+// CHANGED: 사용 가능한 협찬 유형 배열 반환 (하위 호환: 기존 단일 type 키도 지원)
+export function getAvailableTypes() {
+  const stored = sessionStorage.getItem(AVAILABLE_TYPES_KEY)
+  if (stored) {
+    try {
+      return JSON.parse(stored)
+    } catch {
+      return ['premium']
+    }
+  }
+  // 하위 호환: 기존 단일 type 키가 있으면 배열로 변환
+  const legacyType = sessionStorage.getItem('camjigi_dashboard_type')
+  if (legacyType) return [legacyType]
+  return ['premium']
+}
+
+// CHANGED: getDashboardType 유지 (DashboardPage에서 현재 활성 탭 판별에 사용하지 않음, 하위 호환용)
+export function getDashboardType() {
+  const types = getAvailableTypes()
+  return types[0] || 'premium'
+}
+
 export function clearAuth() {
   sessionStorage.removeItem(TOKEN_KEY)
   sessionStorage.removeItem(ACCOMMODATION_KEY)
+  sessionStorage.removeItem(AVAILABLE_TYPES_KEY)
+  // 하위 호환: 기존 키도 정리
+  sessionStorage.removeItem('camjigi_dashboard_type')
 }
 
 export function isAuthenticated() {
@@ -63,24 +98,25 @@ export async function lookupAccommodations(businessNumber) {
   return handleResponse(response)
 }
 
-/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리) */
-// CHANGED: phoneLastFour 파라미터 추가 - 3중 인증 적용
-export async function login(businessNumber, accommodationName, phoneLastFour) {
+/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리 + types 배열) */
+// CHANGED: types 배열을 서버에 전달, 서버가 복수 타입 JWT 발급
+export async function login(businessNumber, accommodationName, phoneLastFour, types) {
   const response = await fetch(`${API_BASE}/api/dashboard/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour }),
+    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour, types }),
   })
   const data = await handleResponse(response)
 
   if (data.success && data.token) {
-    saveAuth(data.token, data.accommodationName)
+    // CHANGED: availableTypes 배열을 sessionStorage에 저장
+    saveAuth(data.token, data.accommodationName, data.availableTypes || ['premium'])
   }
 
   return data
 }
 
-/** 대시보드 데이터 조회 */
+/** 프리미엄 대시보드 데이터 조회 */
 export async function fetchDashboardData() {
   const response = await fetch(`${API_BASE}/api/dashboard/data`, {
     method: 'GET',
@@ -89,23 +125,21 @@ export async function fetchDashboardData() {
   return handleResponse(response)
 }
 
-/** 인원 변경 요청 */
-export async function modifyCrew(newCrew) {
-  const response = await fetch(`${API_BASE}/api/dashboard/modify`, {
+/** 전액 환불 요청 (환불 사유 + 계좌 정보 + 통장사본 이미지) */
+export async function requestRefund({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }) {
+  const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ newCrew }),
+    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }),
   })
   return handleResponse(response)
 }
 
-/** 환불 요청 */
-// CHANGED: 환불 요청 시 계좌 정보(은행, 계좌번호, 예금주명) 추가 전송
-export async function requestRefund({ reason, bankName, accountNumber, accountHolder }) {
-  const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
-    method: 'POST',
+/** 파트너 대시보드 데이터 조회 */
+export async function fetchPartnerData() {
+  const response = await fetch(`${API_BASE}/api/dashboard/partner-data`, {
+    method: 'GET',
     headers: authHeaders(),
-    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder }),
   })
   return handleResponse(response)
 }

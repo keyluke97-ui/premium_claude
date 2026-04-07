@@ -1,22 +1,19 @@
 // CreatorList.jsx - 배정된 크리에이터 목록 카드
 
 import { motion } from 'framer-motion'
+// CHANGED: Item 4 - 인라인 토큰 제거, 공통 designTokens에서 import
+import { BRAND_GREEN, CARD_BACKGROUND, BORDER_COLOR, TEXT_MUTED } from '../../../constants/designTokens'
 
-const BRAND_GREEN = '#01DF82'
-const CARD_BACKGROUND = '#1A1A1A'
-const BORDER_COLOR = 'rgba(255,255,255,0.08)'
-const TEXT_MUTED = 'rgba(255,255,255,0.5)'
-
-/** 등급 뱃지 색상 매핑 */
+// CHANGED: 등급화 매핑 기준 수정 (3=아이콘⭐️=골드, 2=파트너✔️=그린, 1=라이징🔥=오렌지)
 const GRADE_BADGE_COLORS = {
-  1: { background: '#FFD70020', color: '#FFD700' },
-  2: { background: `${BRAND_GREEN}20`, color: BRAND_GREEN },
-  3: { background: '#FF634720', color: '#FF6347' },
+  3: { background: '#FFD70020', color: '#FFD700' },  // 아이콘 ⭐️
+  2: { background: `${BRAND_GREEN}20`, color: BRAND_GREEN }, // 파트너 ✔️
+  1: { background: '#FF6B0025', color: '#FF8C00' },  // 라이징 🔥
 }
 
-/** 날짜 포맷: YYYY-MM-DD → MM/DD(요일) */
+/** 날짜 포맷: YYYY-MM-DD → MM/DD(요일), 없으면 '조율 중' */
 function formatDate(dateString) {
-  if (!dateString) return '-'
+  if (!dateString) return null  // null 반환으로 조율 중 상태 구분
   try {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return dateString
@@ -32,7 +29,8 @@ function formatDate(dateString) {
 
 /** 단일 크리에이터 카드 */
 function CreatorCard({ creator, index }) {
-  const badgeColor = GRADE_BADGE_COLORS[creator.grade] || GRADE_BADGE_COLORS[3]
+  // CHANGED: 알 수 없는 등급은 중립색 fallback
+  const badgeColor = GRADE_BADGE_COLORS[creator.grade] || { background: 'rgba(255,255,255,0.08)', color: TEXT_MUTED }
 
   return (
     <motion.div
@@ -55,6 +53,7 @@ function CreatorCard({ creator, index }) {
               rel="noopener noreferrer"
               className="text-sm font-medium truncate block"
               style={{ color: BRAND_GREEN }}
+              aria-label={`${creator.channelName || '채널명 없음'} 채널 열기 (새 창)`}
             >
               {creator.channelName || '채널명 없음'}
               <svg
@@ -62,6 +61,7 @@ function CreatorCard({ creator, index }) {
                 viewBox="0 0 24 24"
                 fill="none"
                 style={{ verticalAlign: 'middle' }}
+                aria-hidden="true"
               >
                 <path
                   d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"
@@ -91,9 +91,10 @@ function CreatorCard({ creator, index }) {
       </div>
 
       {/* 하단: 체크인 / 사이트 / 콘텐츠 */}
+      {/* CHANGED: 입실일·사이트가 null이면 '조율 중' 상태로 표시 */}
       <div className="grid grid-cols-2 gap-2">
-        <DetailItem label="체크인" value={formatDate(creator.checkInDate)} />
-        <DetailItem label="사이트" value={creator.site || '-'} />
+        <DetailItem label="체크인" value={formatDate(creator.checkInDate)} pending={!creator.checkInDate} />
+        <DetailItem label="사이트" value={creator.site || null} pending={!creator.site} />
         {creator.contentLink && (
           <div className="col-span-2">
             <span className="text-xs block mb-1" style={{ color: TEXT_MUTED }}>콘텐츠</span>
@@ -103,6 +104,7 @@ function CreatorCard({ creator, index }) {
               rel="noopener noreferrer"
               className="text-xs truncate block"
               style={{ color: BRAND_GREEN }}
+              aria-label="크리에이터 콘텐츠 보기 (새 창)"
             >
               콘텐츠 보기 →
             </a>
@@ -113,12 +115,16 @@ function CreatorCard({ creator, index }) {
   )
 }
 
-/** 세부 정보 아이템 */
-function DetailItem({ label, value }) {
+/** 세부 정보 아이템 — pending=true이면 '조율 중' 상태로 표시 */
+function DetailItem({ label, value, pending = false }) {
   return (
     <div>
       <span className="text-xs block mb-0.5" style={{ color: TEXT_MUTED }}>{label}</span>
-      <span className="text-xs text-white">{value}</span>
+      {pending ? (
+        <span className="text-xs" style={{ color: '#FF8C00' }}>조율 중</span>
+      ) : (
+        <span className="text-xs text-white">{value}</span>
+      )}
     </div>
   )
 }

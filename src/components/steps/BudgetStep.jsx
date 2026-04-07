@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 
+// CHANGED: 예산 구간 15/30/50 → 30/50/70 으로 변경 (캠지기 제안 금액 상향 반영)
 const budgetOptions = [
-  { value: 50, label: '50만원', subtitle: '최대 효과를 원하는 캠핑장', emoji: '💎', color: '#FF7300' },
-  { value: 30, label: '30만원', subtitle: '효율적인 마케팅을 원하는 캠핑장', emoji: '⭐', color: '#1975FF' },
-  { value: 15, label: '15만원', subtitle: '합리적인 시작을 원하는 캠핑장', emoji: '🌱', color: '#01DF82' },
+  { value: 70, label: '70만원', subtitle: '최대 효과를 원하는 캠핑장', emoji: '💎', color: '#FF7300' },
+  { value: 50, label: '50만원', subtitle: '효과와 효율 모두 잡는 캠핑장', emoji: '⭐', color: '#1975FF' },
+  { value: 30, label: '30만원', subtitle: '합리적인 시작을 원하는 캠핑장', emoji: '🌱', color: '#01DF82' },
+  { value: 15, label: '10~25만원', subtitle: '부담 없이 시작하는 첫 협찬', emoji: '👋', color: '#A0AEC0' },
   { value: 'custom', label: '직접 선택할게요', subtitle: '등급별 인원을 자유롭게 구성하세요', emoji: '✏️', color: '#727CF5' },
 ]
 

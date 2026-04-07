@@ -1,24 +1,43 @@
 // dashboard-data.js - 대시보드 데이터 조회 (신청 상태 + 크리에이터 배정 현황)
 
-import { verifyToken, extractToken, sanitizeForFormula, buildCorsHeaders } from './jwt-utils.js' // CHANGED: M-1 - 공통 유틸 import
+import { verifyToken, extractToken, buildCorsHeaders, sanitizeForFormula } from './jwt-utils.js' // CHANGED: sanitizeForFormula 복구 (크리에이터 목록 구현)
+// CHANGED: GRADE_INFO, MAX_RECORDS_OFFERS를 공통 상수 파일에서 import (중복 제거)
+import { GRADE_INFO, MAX_RECORDS_OFFERS } from './shared-constants.js'
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('GET, OPTIONS')
+
+// 유료 오퍼 신청 건 테이블명
+const OFFER_TABLE = '유료 오퍼 신청 건'
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
 }
 
-/** 등급 숫자를 한글 라벨로 변환 */
-function gradeLabel(gradeNumber) {
-  const gradeMap = { 1: '아이콘', 2: '파트너', 3: '라이징' }
-  return gradeMap[gradeNumber] || `등급${gradeNumber}`
-}
+/** 유료 오퍼 레코드 1건을 크리에이터 객체로 변환 */
+function mapOfferToCreator(record) {
+  const fields = record.fields
 
-/** 등급 숫자를 이모지로 변환 */
-function gradeEmoji(gradeNumber) {
-  const emojiMap = { 1: '⭐️', 2: '✔️', 3: '🔥' }
-  return emojiMap[gradeNumber] || ''
+  // multipleLookupValues 타입은 배열로 반환되므로 첫 번째 요소 추출
+  const gradeRaw = fields['등급화 (from 크리에이터 채널명 (크리에이터 명단)) (from 크리에이터 채널명(프리미엄 협찬 신청))']
+  const gradeNumber = Array.isArray(gradeRaw) ? gradeRaw[0] ?? null : gradeRaw ?? null
+
+  const channelUrlRaw = fields['채널 URL']
+  const channelUrl = Array.isArray(channelUrlRaw) ? (channelUrlRaw[0] || null) : (channelUrlRaw || null)
+
+  const gradeInfo = GRADE_INFO[gradeNumber] || null
+
+  return {
+    offerId: record.id,
+    channelName: fields['크리에이터 채널명'] || '채널명 없음',
+    channelUrl,
+    grade: gradeNumber,
+    gradeEmoji: gradeInfo?.emoji || '',
+    gradeLabel: gradeInfo?.label || '미분류',
+    checkInDate: fields['입실일'] || null,
+    site: fields['입실 사이트'] || null,
+    contentLink: null,
+  }
 }
 
 export default async (request) => {
@@ -34,7 +53,6 @@ export default async (request) => {
   const BASE_ID = process.env.AIRTABLE_BASE_ID
   const JWT_SECRET = process.env.JWT_SECRET
   const FORM_TABLE = process.env.AIRTABLE_TABLE_ID || '캠지기 모집 폼'
-  const OFFER_TABLE = process.env.AIRTABLE_OFFER_TABLE_ID || '유료 오퍼 신청 건'
 
   if (!API_KEY || !BASE_ID || !JWT_SECRET) {
     return jsonResponse({ error: '서버 환경변수가 설정되지 않았습니다.' }, 500)
@@ -51,21 +69,38 @@ export default async (request) => {
     return jsonResponse({ error: verification.error }, 401)
   }
 
-  const { recordId, accommodationName } = verification.payload
+  // CHANGED: JWT 구조 변경 대응 — premiumRecordId 우선, 하위 호환으로 recordId도 지원
+  const { premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
+  const recordId = premiumRecordId || legacyRecordId
+
+  if (!recordId) {
+    return jsonResponse({ error: '프리미엄 대시보드 접근 권한이 없습니다.' }, 403)
+  }
 
   try {
-    // CHANGED: P-1 - 순차 fetch → Promise.all 병렬 처리 (accommodationName은 JWT에서 확보되므로 독립 실행 가능)
+    // 캠지기 모집 폼 단건 조회 URL
     const formRecordUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(FORM_TABLE)}/${recordId}`
 
-    // CHANGED: S-1 - filterByFormula 인젝션 방지: accommodationName 이스케이프 적용
-    // CHANGED: P-2 - maxRecords=200 추가 (무제한 조회 방지)
+    // CHANGED: 크리에이터 목록 구현 — 유료 오퍼 신청 건 조회 URL 구성
+    // 필터: 숙소명 일치 AND 취소된 오퍼 제외
+    const safeName = sanitizeForFormula(accommodationName)
+    // CHANGED: 구분자 래핑으로 부분 매칭 방지 (예: '숲속캠핑'이 '숲속캠핑장'에 오탐되지 않도록)
     const offerFilter = encodeURIComponent(
-      `{캠핑장명}='${sanitizeForFormula(accommodationName)}'`
+      `AND(FIND('|||${safeName}|||','|||'&ARRAYJOIN({숙소 이름을 적어주세요. (from 숙소 이름 (유료 오퍼ㅏ))},'|||')&'|||'),{예약 취소/변경}!='취소')`
     )
+    const offerFieldsQuery = [
+      '크리에이터 채널명',
+      '등급화 (from 크리에이터 채널명 (크리에이터 명단)) (from 크리에이터 채널명(프리미엄 협찬 신청))',
+      '채널 URL',
+      '입실일',
+      '입실 사이트',
+    ].map(f => 'fields%5B%5D=' + encodeURIComponent(f)).join('&')
+
     const offerUrl =
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(OFFER_TABLE)}` +
-      `?filterByFormula=${offerFilter}&maxRecords=200`
+      `?filterByFormula=${offerFilter}&${offerFieldsQuery}&maxRecords=${MAX_RECORDS_OFFERS}`
 
+    // 두 테이블 병렬 조회
     const [formResponse, offerResponse] = await Promise.all([
       fetch(formRecordUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
       fetch(offerUrl, { headers: { Authorization: `Bearer ${API_KEY}` } }),
@@ -87,6 +122,9 @@ export default async (request) => {
       representativeName: formFields['대표자명'] || '',
       phone: formFields['연락처'] || '',
       email: formFields['캠지기님 이메일'] || '',
+      // CHANGED: 입금 확인 여부 및 실입금 필요 금액 추가
+      paymentConfirmed: formFields['입금내역 확인'] === true,
+      requiredPaymentAmount: formFields['실입금 필요 금액'] || null,
       crew: {
         icon: {
           requested: formFields['⭐️ 모집 희망 인원'] || 0,
@@ -104,37 +142,11 @@ export default async (request) => {
       notes: formFields['비고'] || '',
     }
 
-    // 배정된 크리에이터 현황 구성
-    let creators = []
-
-    if (offerResponse.ok) {
-      const offerData = await offerResponse.json()
-
-      creators = (offerData.records || []).map((record) => {
-        const fields = record.fields
-        const gradeNumber = fields['등급'] || 0
-
-        return {
-          offerId: record.id,
-          channelName: fields['채널명'] || '',
-          channelUrl: fields['채널 URL'] || '',
-          grade: gradeNumber,
-          gradeLabel: gradeLabel(gradeNumber),
-          gradeEmoji: gradeEmoji(gradeNumber),
-          checkInDate: fields['체크인 날짜'] || '',
-          site: fields['사이트'] || '',
-          status: fields['상태'] || '',
-          contentLink: fields['콘텐츠 링크'] || '',
-        }
-      })
-    }
-
-    // 모집 진행률 계산
-    const assignedByGrade = { icon: 0, partner: 0, rising: 0 }
-    for (const creator of creators) {
-      if (creator.grade === 1) assignedByGrade.icon++
-      else if (creator.grade === 2) assignedByGrade.partner++
-      else if (creator.grade === 3) assignedByGrade.rising++
+    // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
+    const assignedByGrade = {
+      icon: formFields['아이콘 크리에이터 신청 수'] || 0,
+      partner: formFields['파트너 크리에이터 신청 수'] || 0,
+      rising: formFields['라이징 크리에이터 신청 수'] || 0,
     }
 
     const recruitment = {
@@ -164,6 +176,13 @@ export default async (request) => {
     // 환불 가능 여부: 전체 모집 완료 전에만 가능
     const isFullyRecruited = totalAssigned >= totalRequested && totalRequested > 0
     const canRefund = !isFullyRecruited
+
+    // CHANGED: 크리에이터 목록 구현 — 유료 오퍼 응답 처리 (조회 실패 시 빈 배열로 graceful degradation)
+    let creators = []
+    if (offerResponse.ok) {
+      const offerData = await offerResponse.json()
+      creators = (offerData.records || []).map(mapOfferToCreator)
+    }
 
     return jsonResponse({
       success: true,
