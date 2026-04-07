@@ -47,9 +47,10 @@ const PACKAGES = {
         Icon: Crown,
         accent: '#FF383C',
         bgGradient: 'linear-gradient(135deg, #2D1B1B 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
       {
-        id: 'bigicon-70', // CHANGED: doubleicon-70 → bigicon-70 (대박 아이콘 플랜 리네이밍)
+        id: 'bigicon-70',
         name: '대박 아이콘 플랜',
         badge: '대박',
         composition: '아이콘 2 + 라이징 1',
@@ -57,13 +58,14 @@ const PACKAGES = {
         crew: { icon: 2, partner: 0, rising: 1 },
         price: 700000,
         priceWithVat: 770000,
-        effect: '아이콘 2명이 만드는 대박 노출 효과', // CHANGED: effect 수정
+        effect: '아이콘 2명이 만드는 대박 노출 효과',
         Icon: Zap,
         accent: '#9047FF',
         bgGradient: 'linear-gradient(135deg, #1A1025 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
       {
-        id: 'volume-70', // CHANGED: mass-70 → volume-70 (물량 라이징 플랜 리네이밍)
+        id: 'volume-70',
         name: '물량 라이징 플랜',
         badge: '물량',
         composition: '파트너 2 + 라이징 4',
@@ -75,6 +77,7 @@ const PACKAGES = {
         Icon: Layers,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
     ],
   },
@@ -93,13 +96,14 @@ const PACKAGES = {
         crew: { icon: 1, partner: 0, rising: 2 },
         price: 500000,
         priceWithVat: 550000,
-        effect: '가장 인기 있는 구성, 노출+후기 동시 확보', // CHANGED: effect 수정
+        effect: '가장 인기 있는 구성, 노출+후기 동시 확보',
         Icon: Zap,
         accent: '#FF383C',
         bgGradient: 'linear-gradient(135deg, #2D1B1B 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
       {
-        id: 'rich-50', // CHANGED: balance-50 → rich-50 (알찬 프로 플랜 리네이밍)
+        id: 'rich-50',
         name: '알찬 프로 플랜',
         badge: '알찬',
         composition: '파트너 2 + 라이징 2',
@@ -111,9 +115,10 @@ const PACKAGES = {
         Icon: Star,
         accent: '#FFC107',
         bgGradient: 'linear-gradient(135deg, #2D2614 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
       {
-        id: 'spread-50', // CHANGED: wave-50 → spread-50 (확산 플랜 리네이밍)
+        id: 'spread-50',
         name: '확산 플랜',
         badge: '확산',
         composition: '라이징 5명',
@@ -121,10 +126,11 @@ const PACKAGES = {
         crew: { icon: 0, partner: 0, rising: 5 },
         price: 500000,
         priceWithVat: 550000,
-        effect: '5명이 동시에 퍼뜨리는 확산 효과', // CHANGED: effect 수정
+        effect: '5명이 동시에 퍼뜨리는 확산 효과',
         Icon: TrendingUp,
         accent: '#1975FF',
         bgGradient: 'linear-gradient(135deg, #0F1B2E 0%, #1A1A2E 100%)',
+        discountEligible: false,
       },
     ],
   },
@@ -143,13 +149,14 @@ const PACKAGES = {
         crew: { icon: 1, partner: 0, rising: 0 },
         price: 300000,
         priceWithVat: 330000,
-        effect: '강력한 한 방의 대형 노출', // CHANGED: '10만+ 유튜버의' 표현 삭제
+        effect: '강력한 한 방의 대형 노출',
         Icon: Zap,
         accent: '#FF383C',
         bgGradient: 'linear-gradient(135deg, #2D1B1B 0%, #1A1A2E 100%)',
+        discountEligible: true,
       },
       {
-        id: 'value-30', // CHANGED: duo-30 → value-30 (실속 파트너 플랜 리네이밍)
+        id: 'value-30',
         name: '실속 파트너 플랜',
         badge: '실속',
         composition: '파트너 2명',
@@ -161,9 +168,10 @@ const PACKAGES = {
         Icon: Star,
         accent: '#727CF5',
         bgGradient: 'linear-gradient(135deg, #1A1A2E 0%, #1E1530 100%)',
+        discountEligible: true,
       },
       {
-        id: 'beginner-30', // CHANGED: triple-30 → beginner-30 (입문 플랜 리네이밍)
+        id: 'beginner-30',
         name: '입문 플랜',
         badge: '입문',
         composition: '라이징 3명',
@@ -175,6 +183,7 @@ const PACKAGES = {
         Icon: Sparkles,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #111111 100%)',
+        discountEligible: false,
       },
     ],
   },
@@ -197,6 +206,7 @@ const PACKAGES = {
         Icon: Sparkles,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #111111 100%)',
+        discountEligible: true,
       },
       {
         id: 'taste-15',
@@ -211,6 +221,7 @@ const PACKAGES = {
         Icon: Star,
         accent: '#A0AEC0',
         bgGradient: 'linear-gradient(135deg, #1A1A2E 0%, #111111 100%)',
+        discountEligible: true,
       },
       {
         id: 'starter-15',
@@ -225,6 +236,7 @@ const PACKAGES = {
         Icon: Layers,
         accent: '#727CF5',
         bgGradient: 'linear-gradient(135deg, #1A1A2E 0%, #1E1530 100%)',
+        discountEligible: true,
       },
     ],
   },
@@ -239,7 +251,7 @@ export const DISCOUNT_PRICING = {
 
 /** 플랜에 첫 신청 할인을 적용한 새 플랜 객체 반환 */
 export function computeDiscountedPlan(plan) {
-  if (!plan || !plan.crew) return plan
+  if (!plan || !plan.crew || !plan.discountEligible) return plan
   const discountedPrice =
     DISCOUNT_PRICING.icon.price * (plan.crew.icon || 0) +
     DISCOUNT_PRICING.partner.price * (plan.crew.partner || 0) +

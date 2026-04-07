@@ -65,16 +65,22 @@ function TierSummaryBar({ isFirstTime }) {
   )
 }
 
-// CHANGED: 플랜 카드 내 등급별 단가 breakdown 라인 컴포넌트
-function BreakdownLine({ crew }) {
+// 플랜 카드 내 등급별 단가 breakdown 라인 컴포넌트 (할인가 표시 지원)
+function BreakdownLine({ crew, showDiscount }) {
   if (!crew) return null
 
   const parts = Object.entries(crew)
     .filter(([, count]) => count > 0)
     .map(([tier, count]) => {
       const tierData = PRICING[tier]
+      const discountData = DISCOUNT_PRICING[tier]
       const tierColor = TIER_COLORS[tier]
-      return { tier, count, label: tierData.label, unitPrice: tierData.price, tierColor }
+      return {
+        tier, count,
+        label: tierData.label,
+        unitPrice: showDiscount ? discountData.price : tierData.price,
+        tierColor,
+      }
     })
 
   if (parts.length === 0) return null
@@ -270,10 +276,19 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
       {/* 사업자번호 입력 + 첫 신청 조회 */}
-      <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <label className="text-xs font-semibold mb-2 block" style={{ color: 'rgba(255,255,255,0.6)' }}>
-          사업자 번호를 입력하면 첫 신청 할인 여부를 확인해드려요
-        </label>
+      <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(1,223,130,0.04)', border: '1px solid rgba(1,223,130,0.15)' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <BadgePercent size={15} style={{ color: '#01DF82' }} />
+          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>첫 신청이라면 최대 20% 할인!</span>
+        </div>
+        <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
+          사업자 번호로 첫 신청 여부를 확인해보세요
+        </p>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>아이콘 30만→25만</span>
+          <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>파트너 15만→12만</span>
+          <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>라이징 10만→7만</span>
+        </div>
         <div className="flex gap-2">
           <input
             type="text"
@@ -332,7 +347,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
               {isFirstTime ? (
                 <>
                   <BadgePercent size={14} />
-                  첫 신청 할인이 적용됩니다! 모든 플랜에 할인가가 반영돼요.
+                  첫 신청 할인 대상입니다! 해당 플랜에 할인가가 반영돼요.
                 </>
               ) : (
                 '기존 신청 이력이 있습니다. 정가가 적용됩니다.'
@@ -440,11 +455,10 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                   </span>
                 </div>
 
-                {/* CHANGED: 등급별 단가 breakdown 추가 */}
-                <BreakdownLine crew={plan.crew} />
+                <BreakdownLine crew={plan.crew} showDiscount={isFirstTime && plan.discountEligible} />
 
                 <div className="text-sm mt-3 mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{plan.effect}</div>
-                {isFirstTime ? (() => {
+                {isFirstTime && plan.discountEligible ? (() => {
                   const discounted = computeDiscountedPlan(plan)
                   return (
                     <div>
