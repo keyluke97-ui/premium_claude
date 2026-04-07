@@ -49,10 +49,11 @@ export default async (req) => {
     const body = await req.json()
     const { budget, formData, crew, planTier, selectedPlan } = body
 
-    // 고정 단가
-    const ICON_PRICE = 300000
-    const PARTNER_PRICE = 150000 // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
-    const RISING_PRICE = 100000 // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
+    // 단가 (첫 신청 할인 적용 여부에 따라 분기)
+    const isDiscounted = selectedPlan?.isDiscounted === true
+    const ICON_PRICE = isDiscounted ? 250000 : 300000
+    const PARTNER_PRICE = isDiscounted ? 120000 : 150000
+    const RISING_PRICE = isDiscounted ? 70000 : 100000
 
     const payload = {
       records: [
