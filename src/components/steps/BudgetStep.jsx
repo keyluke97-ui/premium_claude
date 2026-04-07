@@ -3,11 +3,11 @@ import { Check } from 'lucide-react'
 
 // CHANGED: 예산 구간 15/30/50 → 30/50/70 으로 변경 (캠지기 제안 금액 상향 반영)
 const budgetOptions = [
-  { value: 70, label: '70만원', subtitle: '최대 효과를 원하는 캠핑장', emoji: '💎', color: '#FF7300' },
-  { value: 50, label: '50만원', subtitle: '효과와 효율 모두 잡는 캠핑장', emoji: '⭐', color: '#1975FF' },
-  { value: 30, label: '30만원', subtitle: '합리적인 시작을 원하는 캠핑장', emoji: '🌱', color: '#01DF82' },
-  { value: 15, label: '10~25만원', subtitle: '부담 없이 시작하는 첫 협찬', emoji: '👋', color: '#A0AEC0' },
-  { value: 'custom', label: '직접 선택할게요', subtitle: '등급별 인원을 자유롭게 구성하세요', emoji: '✏️', color: '#727CF5' },
+  { value: 70, label: '70만원', subtitle: '크리에이터 최대 6명, 대규모 노출', hint: '성수기 전 예약률 끌어올리기에 적합', emoji: '💎', color: '#FF7300' },
+  { value: 50, label: '50만원', subtitle: '3~5명 크리에이터로 고른 홍보', hint: '가장 많이 선택하는 예산대', emoji: '⭐', color: '#1975FF', popular: true },
+  { value: 30, label: '30만원', subtitle: '1~3명으로 핵심 콘텐츠 확보', hint: '협찬이 처음이라면 여기서 시작', emoji: '🌱', color: '#01DF82' },
+  { value: 15, label: '10~25만원', subtitle: '1~2명으로 가볍게 체험', hint: '최소 비용으로 협찬 효과 확인', emoji: '👋', color: '#A0AEC0' },
+  { value: 'custom', label: '직접 선택할게요', subtitle: '원하는 크리에이터를 직접 구성', emoji: '✏️', color: '#727CF5' },
 ]
 
 export default function BudgetStep({ selected, onSelect }) {
@@ -53,10 +53,22 @@ export default function BudgetStep({ selected, onSelect }) {
                 {option.emoji}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-lg font-bold text-white">{option.label}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-white">{option.label}</span>
+                  {option.popular && (
+                    <span className="px-1.5 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: '#01DF82', color: '#000' }}>
+                      가장 인기
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
                   {option.subtitle}
                 </div>
+                {option.hint && (
+                  <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {option.hint}
+                  </div>
+                )}
               </div>
               {isSelected && (
                 <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#01DF82' }}>
