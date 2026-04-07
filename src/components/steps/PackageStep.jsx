@@ -261,11 +261,11 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       {/* 크리에이터 등급 안내 버튼 */}
       <button
         onClick={() => setShowGuide(true)}
-        className="flex items-center gap-1.5 mb-5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        className="flex items-center gap-1.5 mb-5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all"
         style={{
-          backgroundColor: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: 'rgba(255,255,255,0.55)',
+          backgroundColor: 'rgba(1,223,130,0.08)',
+          border: '1px solid rgba(1,223,130,0.2)',
+          color: '#01DF82',
           cursor: 'pointer',
         }}
       >
@@ -440,9 +440,16 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
               {/* 카드 상단: 배지 + 플랜명 */}
               <div className="p-5 flex justify-between items-start" style={{ background: plan.bgGradient }}>
                 <div>
-                  <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold mb-2" style={{ backgroundColor: plan.accent, color: '#000' }}>
-                    {plan.badge}
-                  </span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: plan.accent, color: '#000' }}>
+                      {plan.badge}
+                    </span>
+                    {plan.recommended && (
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
+                        추천
+                      </span>
+                    )}
+                  </div>
                   <div className="text-lg font-bold text-white">{plan.name}</div>
                 </div>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
@@ -479,7 +486,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                   )
                 })() : (
                   <div className="flex items-baseline gap-2">
-                    <span className="text-base font-bold" style={{ color: plan.accent }}>{formatPrice(plan.price)}</span>
+                    <span className="text-base font-bold text-white">{formatPrice(plan.price)}</span>
                     <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>VAT 포함 {formatPrice(plan.priceWithVat)}</span>
                   </div>
                 )}
