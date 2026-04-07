@@ -300,6 +300,11 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                 setIsFirstTime(false)
                 sessionStorage.removeItem('bizNumber')
                 sessionStorage.removeItem('isFirstTime')
+                // 이미 할인 적용된 플랜이 있으면 정가로 되돌림
+                if (selected && selected.isDiscounted && pkg) {
+                  const originalPlan = pkg.plans.find(p => p.id === selected.id)
+                  if (originalPlan) onSelect(originalPlan)
+                }
               }
             }}
             placeholder="123-45-67890"
