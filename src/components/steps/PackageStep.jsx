@@ -220,6 +220,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       id: 'custom',
       name: '직접 선택할게요',
       crew,
+      discountEligible: false,
     })
   }
 
@@ -230,6 +231,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       id: 'custom',
       name: '직접 선택할게요',
       crew: newCrew,
+      discountEligible: false,
     })
   }
 
@@ -301,9 +303,17 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                 sessionStorage.removeItem('bizNumber')
                 sessionStorage.removeItem('isFirstTime')
                 // 이미 할인 적용된 플랜이 있으면 정가로 되돌림
-                if (selected && selected.isDiscounted && pkg) {
-                  const originalPlan = pkg.plans.find(p => p.id === selected.id)
-                  if (originalPlan) onSelect(originalPlan)
+                if (selected && selected.isDiscounted) {
+                  const originalPlan = pkg?.plans?.find(p => p.id === selected.id)
+                  if (originalPlan) {
+                    onSelect(originalPlan)
+                  } else {
+                    // budget 변경 등으로 원본 플랜을 못 찾으면 할인 플래그만 제거
+                    const { isDiscounted, originalPrice, ...cleanPlan } = selected
+                    if (originalPrice) cleanPlan.price = originalPrice
+                    cleanPlan.priceWithVat = Math.round((cleanPlan.price || 0) * 1.1)
+                    onSelect(cleanPlan)
+                  }
                 }
               }
             }}
@@ -363,7 +373,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       </div>
 
       {/* 등급별 단가 요약 바 */}
-      <TierSummaryBar isFirstTime={isFirstTime} />
+      <TierSummaryBar isFirstTime={isFirstTime && !isCustom && !isDirectCustom} />
 
       {/* 직접 선택 모드: 크루 카운터만 표시 */}
       {isDirectCustom && (
