@@ -10,6 +10,7 @@ import {
   getAccommodationName,
   getAvailableTypes, // CHANGED: getDashboardType 대신 getAvailableTypes 사용
   getPremiumRecordIds,
+  getPremiumBudgets,
   isAuthenticated,
   clearAuth,
 } from '../../utils/dashboardApi'
@@ -501,13 +502,12 @@ function PremiumDashboardContent({ dashboardData, accommodationName, onModify, o
 
   const paymentConfirmed = application?.paymentConfirmed === true
 
-  // 복수 신청: 활성 레코드는 실제 예산으로 표시, 나머지는 순번으로 표시
+  // 복수 신청: auth 시점에 가져온 예산 라벨로 구분, 없으면 순번 fallback
+  const storedBudgets = getPremiumBudgets()
   const budgetLabels = premiumRecordIds
     ? Object.fromEntries(premiumRecordIds.map((rid, idx) => {
-      if (rid === activeRecordId && application?.selectedBudget) {
-        return [rid, `${application.selectedBudget}`]
-      }
-      return [rid, `${idx + 1}차 신청`]
+      const budget = storedBudgets?.[rid] || (rid === activeRecordId ? application?.selectedBudget : '')
+      return [rid, budget || `${idx + 1}차 신청`]
     }))
     : null
 

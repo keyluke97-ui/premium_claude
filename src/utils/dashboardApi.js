@@ -8,8 +8,9 @@ const TOKEN_KEY = 'camjigi_dashboard_token'
 const ACCOMMODATION_KEY = 'camjigi_accommodation_name'
 // CHANGED: 단일 TYPE_KEY 대신 AVAILABLE_TYPES_KEY로 변경 (복수 유형 지원)
 const AVAILABLE_TYPES_KEY = 'camjigi_dashboard_available_types'
-// CHANGED: 복수 프리미엄 신청 recordId 배열 저장 키
+// CHANGED: 복수 프리미엄 신청 recordId 배열 + 예산 라벨 저장 키
 const PREMIUM_RECORD_IDS_KEY = 'camjigi_premium_record_ids'
+const PREMIUM_BUDGETS_KEY = 'camjigi_premium_budgets'
 
 /** 인증 정보 저장 */
 // CHANGED: availableTypes 배열을 JSON으로 저장
@@ -58,6 +59,7 @@ export function clearAuth() {
   sessionStorage.removeItem(ACCOMMODATION_KEY)
   sessionStorage.removeItem(AVAILABLE_TYPES_KEY)
   sessionStorage.removeItem(PREMIUM_RECORD_IDS_KEY)
+  sessionStorage.removeItem(PREMIUM_BUDGETS_KEY)
   // 하위 호환: 기존 키도 정리
   sessionStorage.removeItem('camjigi_dashboard_type')
 }
@@ -114,9 +116,12 @@ export async function login(businessNumber, accommodationName, phoneLastFour, ty
   if (data.success && data.token) {
     // CHANGED: availableTypes 배열을 sessionStorage에 저장
     saveAuth(data.token, data.accommodationName, data.availableTypes || ['premium'])
-    // CHANGED: 복수 프리미엄 recordId 배열 저장 (JWT에서 파싱)
+    // CHANGED: 복수 프리미엄 recordId 배열 + 예산 라벨 저장
     if (data.premiumRecordIds && data.premiumRecordIds.length > 0) {
       sessionStorage.setItem(PREMIUM_RECORD_IDS_KEY, JSON.stringify(data.premiumRecordIds))
+    }
+    if (data.premiumBudgets) {
+      sessionStorage.setItem(PREMIUM_BUDGETS_KEY, JSON.stringify(data.premiumBudgets))
     }
   }
 
@@ -145,6 +150,15 @@ export function getPremiumRecordIds() {
     } catch {
       return null
     }
+  }
+  return null
+}
+
+/** 복수 프리미엄 예산 라벨 조회 — { recordId: '50만원', ... } */
+export function getPremiumBudgets() {
+  const stored = sessionStorage.getItem(PREMIUM_BUDGETS_KEY)
+  if (stored) {
+    try { return JSON.parse(stored) } catch { return null }
   }
   return null
 }

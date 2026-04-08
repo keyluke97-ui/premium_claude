@@ -117,17 +117,14 @@ export default async (request) => {
           record = records[0]
         }
 
-        // CHANGED: 타입별 배열에 recordId 추가 (복수 신청 지원)
-        candidateRecordIds[entryType].push(record.id)
+        // CHANGED: 모든 레코드에 대해 전화번호 뒷자리 검증 — 미통과 레코드는 JWT에 포함하지 않음
+        // (같은 사업자번호의 다른 운영자 레코드가 JWT에 섞이는 것을 방지)
+        const storedPhone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
+        const storedLastFour = storedPhone.slice(-4)
+        if (!storedLastFour || storedLastFour !== cleanPhoneLastFour) continue
 
-        // 연락처 검증 (아직 미검증 시에만)
-        if (!phoneVerified) {
-          const storedPhone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
-          const storedLastFour = storedPhone.slice(-4)
-          if (storedLastFour && storedLastFour === cleanPhoneLastFour) {
-            phoneVerified = true
-          }
-        }
+        phoneVerified = true
+        candidateRecordIds[entryType].push(record.id)
       } catch (entryError) {
         console.error(`[auth] ${entryType} 조회 실패:`, entryError.message)
         continue
@@ -142,6 +139,25 @@ export default async (request) => {
     const availableTypes = Object.entries(candidateRecordIds)
       .filter(([, ids]) => ids.length > 0)
       .map(([t]) => t)
+
+    // CHANGED: 복수 프리미엄 신청 시 각 레코드의 예산 정보 조회 (칩 라벨용)
+    let premiumBudgets = null
+    if (candidateRecordIds.premium.length > 1) {
+      const tableSettings = getTableSettings('premium')
+      if (tableSettings) {
+        const budgetPromises = candidateRecordIds.premium.map(async (rid) => {
+          try {
+            const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(tableSettings.tableId)}/${rid}?fields%5B%5D=${encodeURIComponent('선택 예산')}`
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${API_KEY}` } })
+            if (!res.ok) return { rid, budget: '' }
+            const rec = await res.json()
+            return { rid, budget: rec.fields?.['선택 예산'] || '' }
+          } catch { return { rid, budget: '' } }
+        })
+        const results = await Promise.all(budgetPromises)
+        premiumBudgets = Object.fromEntries(results.map(b => [b.rid, b.budget]))
+      }
+    }
 
     // CHANGED: JWT payload — premiumRecordIds 배열 + 하위 호환용 premiumRecordId 단건 유지
     const token = signToken(
@@ -161,8 +177,9 @@ export default async (request) => {
       token,
       accommodationName,
       availableTypes,
-      // CHANGED: 복수 프리미엄 recordId를 프론트에 전달 (대시보드 신청 건 선택용)
+      // CHANGED: 복수 프리미엄 recordId + 예산 라벨을 프론트에 전달
       premiumRecordIds: candidateRecordIds.premium.length > 1 ? candidateRecordIds.premium : undefined,
+      premiumBudgets: premiumBudgets || undefined,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)
