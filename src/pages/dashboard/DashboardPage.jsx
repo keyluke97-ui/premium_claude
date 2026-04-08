@@ -9,6 +9,7 @@ import {
   fetchPartnerData,
   getAccommodationName,
   getAvailableTypes, // CHANGED: getDashboardType 대신 getAvailableTypes 사용
+  getPremiumRecordIds,
   isAuthenticated,
   clearAuth,
 } from '../../utils/dashboardApi'
@@ -279,6 +280,8 @@ function DashboardPage() {
 
   // CHANGED: sessionStorage에서 사용 가능한 타입 목록 1회만 파싱 (매 렌더 JSON.parse 방지)
   const [availableTypes] = useState(() => getAvailableTypes())
+  // CHANGED: 복수 프리미엄 recordId 배열 (단일 신청이면 null)
+  const [premiumRecordIds] = useState(() => getPremiumRecordIds())
 
   // CHANGED: 현재 활성 탭 — URL ?tab= 파라미터 기반, 없으면 availableTypes 첫 번째
   const tabParam = searchParams.get('tab')
@@ -286,10 +289,20 @@ function DashboardPage() {
     ? tabParam
     : availableTypes[0] || 'premium'
 
+  // CHANGED: 복수 프리미엄 신청 시 선택된 recordId — URL ?rid= 파라미터 기반
+  const ridParam = searchParams.get('rid')
+  const activeRecordId = (premiumRecordIds && ridParam && premiumRecordIds.includes(ridParam))
+    ? ridParam
+    : (premiumRecordIds ? premiumRecordIds[0] : null)
+
   /** CHANGED: 탭 전환 핸들러 — URL 쿼리파라미터 업데이트 */
   const handleTabChange = useCallback((newTab) => {
     setSearchParams({ tab: newTab }, { replace: true })
-    // CHANGED: setDashboardData(null) 제거 — loadData 내 setLoading(true)로 충분, null 세팅 시 ErrorDisplay flash 유발
+  }, [setSearchParams])
+
+  /** CHANGED: 복수 프리미엄 신청 건 전환 핸들러 */
+  const handleRecordChange = useCallback((rid) => {
+    setSearchParams({ tab: 'premium', rid }, { replace: true })
   }, [setSearchParams])
 
   /** 대시보드 데이터 로드 — activeTab에 따라 다른 API 호출 */
@@ -300,7 +313,7 @@ function DashboardPage() {
     try {
       const data = activeTab === 'partner'
         ? await fetchPartnerData()
-        : await fetchDashboardData()
+        : await fetchDashboardData(activeRecordId)
       setDashboardData(data)
     } catch (fetchError) {
       if (fetchError.message.includes('인증이 만료')) {
@@ -311,7 +324,7 @@ function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [navigate, activeTab])
+  }, [navigate, activeTab, activeRecordId])
 
   // 인증 확인 + 데이터 로드
   useEffect(() => {
@@ -409,6 +422,9 @@ function DashboardPage() {
                 accommodationName={accommodationName}
                 onModify={handleOpenModify}
                 onRefund={handleOpenRefund}
+                premiumRecordIds={premiumRecordIds}
+                activeRecordId={activeRecordId}
+                onRecordChange={handleRecordChange}
               />
             </motion.div>
           )}
@@ -440,8 +456,39 @@ function DashboardPage() {
   )
 }
 
+/** CHANGED: 복수 프리미엄 신청 건 선택 칩 — 선택예산으로 구분 표시 */
+function PremiumRecordSelector({ recordIds, activeRecordId, budgetLabels, onSelect }) {
+  if (!recordIds || recordIds.length < 2) return null
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs mb-2" style={{ color: TEXT_MUTED }}>신청 건 선택</p>
+      <div className="flex gap-2 flex-wrap">
+        {recordIds.map((rid, idx) => {
+          const isActive = rid === activeRecordId
+          const label = budgetLabels?.[rid] || `${idx + 1}차 신청`
+          return (
+            <button
+              key={rid}
+              onClick={() => onSelect(rid)}
+              className="px-3 py-2 rounded-lg text-xs font-medium transition-all min-h-[36px]"
+              style={{
+                backgroundColor: isActive ? `${BRAND_GREEN}20` : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${isActive ? BRAND_GREEN : BORDER_COLOR}`,
+                color: isActive ? BRAND_GREEN : TEXT_MUTED,
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /** CHANGED: 프리미엄 대시보드 콘텐츠 — DashboardPage에서 분리 */
-function PremiumDashboardContent({ dashboardData, accommodationName, onModify, onRefund }) {
+function PremiumDashboardContent({ dashboardData, accommodationName, onModify, onRefund, premiumRecordIds, activeRecordId, onRecordChange }) {
   const {
     application,
     recruitment,
@@ -454,8 +501,26 @@ function PremiumDashboardContent({ dashboardData, accommodationName, onModify, o
 
   const paymentConfirmed = application?.paymentConfirmed === true
 
+  // 복수 신청: 활성 레코드는 실제 예산으로 표시, 나머지는 순번으로 표시
+  const budgetLabels = premiumRecordIds
+    ? Object.fromEntries(premiumRecordIds.map((rid, idx) => {
+      if (rid === activeRecordId && application?.selectedBudget) {
+        return [rid, `${application.selectedBudget}`]
+      }
+      return [rid, `${idx + 1}차 신청`]
+    }))
+    : null
+
   return (
     <>
+      {/* CHANGED: 복수 프리미엄 신청 건 선택 칩 */}
+      <PremiumRecordSelector
+        recordIds={premiumRecordIds}
+        activeRecordId={activeRecordId}
+        budgetLabels={budgetLabels}
+        onSelect={onRecordChange}
+      />
+
       {!paymentConfirmed && <PaymentPendingBanner />}
 
       <div className="space-y-4">

@@ -27,6 +27,17 @@ function getAlternateNames(item) {
   return names.slice(1)
 }
 
+/** CHANGED: types 배열에서 동일 타입을 그룹핑하여 뱃지용 데이터 생성
+ * 예: [premium, premium, partner] → [{type:'premium', count:2}, {type:'partner', count:1}]
+ */
+function groupTypeBadges(types) {
+  const counts = {}
+  for (const entry of types) {
+    counts[entry.type] = (counts[entry.type] || 0) + 1
+  }
+  return Object.entries(counts).map(([type, count]) => ({ type, count }))
+}
+
 /** 사업자번호 포맷: 000-00-00000 */
 function formatBusinessNumber(value) {
   const digits = value.replace(/[^0-9]/g, '').slice(0, 10)
@@ -269,18 +280,18 @@ export default function LoginPage() {
                               )}
                             </div>
                             <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                              {item.types.map((typeEntry) => {
-                                const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
+                              {groupTypeBadges(item.types).map(({ type: bType, count }) => {
+                                const badge = TYPE_BADGE[bType] || TYPE_BADGE.premium
                                 return (
                                   <span
-                                    key={typeEntry.type}
+                                    key={bType}
                                     className="text-xs px-2 py-0.5 rounded-full font-medium"
                                     style={{
                                       color: badge.color,
                                       backgroundColor: badge.backgroundColor,
                                     }}
                                   >
-                                    {badge.label}
+                                    {badge.label}{count > 1 ? ` x${count}` : ''}
                                   </span>
                                 )
                               })}
@@ -313,18 +324,18 @@ export default function LoginPage() {
                         )}
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                        {selectedAccommodation.types.map((typeEntry) => {
-                          const badge = TYPE_BADGE[typeEntry.type] || TYPE_BADGE.premium
+                        {groupTypeBadges(selectedAccommodation.types).map(({ type: bType, count }) => {
+                          const badge = TYPE_BADGE[bType] || TYPE_BADGE.premium
                           return (
                             <span
-                              key={typeEntry.type}
+                              key={bType}
                               className="text-xs px-2 py-0.5 rounded-full font-medium"
                               style={{
                                 color: badge.color,
                                 backgroundColor: badge.backgroundColor,
                               }}
                             >
-                              {badge.label}
+                              {badge.label}{count > 1 ? ` x${count}` : ''}
                             </span>
                           )
                         })}

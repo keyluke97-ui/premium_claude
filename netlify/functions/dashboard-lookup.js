@@ -25,12 +25,15 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
   const filterFormula = encodeURIComponent(
     `SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}'`
   )
-  // CHANGED: phoneField도 함께 조회 — 연락처 기준 그룹핑에 사용
-  const fieldsQuery = [
-    'fields%5B%5D=' + encodeURIComponent(config.accommodationNameField),
-    'fields%5B%5D=' + encodeURIComponent(config.businessNumberField),
-    'fields%5B%5D=' + encodeURIComponent(config.phoneField),
-  ].join('&')
+  // CHANGED: phoneField + 선택예산 함께 조회 — 연락처 기준 그룹핑 + 복수 신청 구분에 사용
+  const fieldNames = [
+    config.accommodationNameField,
+    config.businessNumberField,
+    config.phoneField,
+  ]
+  // 프리미엄 테이블만 선택 예산 필드 추가 (복수 신청 구분용)
+  if (type === 'premium') fieldNames.push('선택 예산')
+  const fieldsQuery = fieldNames.map(f => 'fields%5B%5D=' + encodeURIComponent(f)).join('&')
 
   const airtableUrl =
     `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}` +
@@ -49,24 +52,18 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
     const { records } = await response.json()
     if (!records || records.length === 0) return []
 
-    // CHANGED: 동일 테이블 내 중복 연락처 제거 (같은 전화번호면 동일 운영자)
-    const phoneMap = new Map()
-    for (const record of records) {
-      const name = record.fields[config.accommodationNameField] || ''
-      const phone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
-      // 그룹핑 키: 연락처가 있으면 연락처, 없으면 캠핑장명 fallback
-      const groupKey = phone || name
-      if (name && !phoneMap.has(groupKey)) {
-        phoneMap.set(groupKey, { name, recordId: record.id, phone })
-      }
-    }
-
-    return Array.from(phoneMap.values()).map((item) => ({
-      name: item.name,
-      recordId: item.recordId,
-      type,
-      phone: item.phone,
-    }))
+    // CHANGED: 동일 타입 복수 신청 보존 — 같은 연락처라도 별도 레코드면 모두 반환
+    // (동일 캠핑장이 프리미엄 2회 신청 시 각각 독립 레코드로 대시보드에 표시)
+    return records
+      .filter((record) => record.fields[config.accommodationNameField])
+      .map((record) => ({
+        name: record.fields[config.accommodationNameField] || '',
+        recordId: record.id,
+        type,
+        phone: (record.fields[config.phoneField] || '').replace(/[^0-9]/g, ''),
+        // 프리미엄: 선택예산으로 복수 신청 구분, 파트너: null
+        budget: type === 'premium' ? (record.fields['선택 예산'] || '') : '',
+      }))
   } catch (error) {
     console.error(`[lookup] ${type} 테이블 조회 에러:`, error.message)
     return []
@@ -132,7 +129,7 @@ export default async (request) => {
       const groupKey = item.phone || item.name
       const existing = groupedMap.get(groupKey)
       if (existing) {
-        existing.types.push({ type: item.type, recordId: item.recordId })
+        existing.types.push({ type: item.type, recordId: item.recordId, budget: item.budget || '' })
         // CHANGED: 캠핑장명이 다를 경우 모든 이름을 보존 (프론트에서 표시용)
         if (item.name && !existing.names.includes(item.name)) {
           existing.names.push(item.name)
@@ -141,7 +138,7 @@ export default async (request) => {
         groupedMap.set(groupKey, {
           name: item.name,
           names: [item.name],
-          types: [{ type: item.type, recordId: item.recordId }],
+          types: [{ type: item.type, recordId: item.recordId, budget: item.budget || '' }],
         })
       }
     }

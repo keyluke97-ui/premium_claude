@@ -8,6 +8,8 @@ const TOKEN_KEY = 'camjigi_dashboard_token'
 const ACCOMMODATION_KEY = 'camjigi_accommodation_name'
 // CHANGED: 단일 TYPE_KEY 대신 AVAILABLE_TYPES_KEY로 변경 (복수 유형 지원)
 const AVAILABLE_TYPES_KEY = 'camjigi_dashboard_available_types'
+// CHANGED: 복수 프리미엄 신청 recordId 배열 저장 키
+const PREMIUM_RECORD_IDS_KEY = 'camjigi_premium_record_ids'
 
 /** 인증 정보 저장 */
 // CHANGED: availableTypes 배열을 JSON으로 저장
@@ -55,6 +57,7 @@ export function clearAuth() {
   sessionStorage.removeItem(TOKEN_KEY)
   sessionStorage.removeItem(ACCOMMODATION_KEY)
   sessionStorage.removeItem(AVAILABLE_TYPES_KEY)
+  sessionStorage.removeItem(PREMIUM_RECORD_IDS_KEY)
   // 하위 호환: 기존 키도 정리
   sessionStorage.removeItem('camjigi_dashboard_type')
 }
@@ -111,18 +114,39 @@ export async function login(businessNumber, accommodationName, phoneLastFour, ty
   if (data.success && data.token) {
     // CHANGED: availableTypes 배열을 sessionStorage에 저장
     saveAuth(data.token, data.accommodationName, data.availableTypes || ['premium'])
+    // CHANGED: 복수 프리미엄 recordId 배열 저장 (JWT에서 파싱)
+    if (data.premiumRecordIds && data.premiumRecordIds.length > 0) {
+      sessionStorage.setItem(PREMIUM_RECORD_IDS_KEY, JSON.stringify(data.premiumRecordIds))
+    }
   }
 
   return data
 }
 
-/** 프리미엄 대시보드 데이터 조회 */
-export async function fetchDashboardData() {
-  const response = await fetch(`${API_BASE}/api/dashboard/data`, {
+/** 프리미엄 대시보드 데이터 조회 — recordId 지정 시 해당 신청 건 조회 */
+export async function fetchDashboardData(recordId) {
+  const url = recordId
+    ? `${API_BASE}/api/dashboard/data?rid=${encodeURIComponent(recordId)}`
+    : `${API_BASE}/api/dashboard/data`
+  const response = await fetch(url, {
     method: 'GET',
     headers: authHeaders(),
   })
   return handleResponse(response)
+}
+
+/** 복수 프리미엄 recordId 배열 조회 (단일 신청이면 null) */
+export function getPremiumRecordIds() {
+  const stored = sessionStorage.getItem(PREMIUM_RECORD_IDS_KEY)
+  if (stored) {
+    try {
+      const ids = JSON.parse(stored)
+      return Array.isArray(ids) && ids.length > 1 ? ids : null
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 /** 전액 환불 요청 (환불 사유 + 계좌 정보 + 통장사본 이미지) */

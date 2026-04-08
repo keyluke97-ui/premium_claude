@@ -69,12 +69,28 @@ export default async (request) => {
     return jsonResponse({ error: verification.error }, 401)
   }
 
-  // CHANGED: JWT 구조 변경 대응 — premiumRecordId 우선, 하위 호환으로 recordId도 지원
-  const { premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
-  const recordId = premiumRecordId || legacyRecordId
+  // CHANGED: JWT 구조 변경 대응 — premiumRecordIds 배열 + 하위 호환 (premiumRecordId, recordId)
+  const { premiumRecordIds, premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
+  const defaultRecordId = premiumRecordId || legacyRecordId
 
-  if (!recordId) {
+  if (!defaultRecordId && (!premiumRecordIds || premiumRecordIds.length === 0)) {
     return jsonResponse({ error: '프리미엄 대시보드 접근 권한이 없습니다.' }, 403)
+  }
+
+  // CHANGED: query param ?rid= 로 특정 신청 건 recordId 지정 가능
+  const url = new URL(request.url)
+  const requestedRecordId = url.searchParams.get('rid')
+
+  let recordId
+  if (requestedRecordId) {
+    // 요청된 recordId가 JWT의 허용 목록에 포함되는지 검증
+    const allowedIds = premiumRecordIds || [defaultRecordId].filter(Boolean)
+    if (!allowedIds.includes(requestedRecordId)) {
+      return jsonResponse({ error: '해당 신청 건에 대한 접근 권한이 없습니다.' }, 403)
+    }
+    recordId = requestedRecordId
+  } else {
+    recordId = defaultRecordId
   }
 
   try {

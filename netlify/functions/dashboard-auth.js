@@ -74,7 +74,8 @@ export default async (request) => {
     // 같은 그룹 = 같은 운영자(같은 연락처)가 보장됨.
     // 프리미엄/파트너 중 하나의 연락처만 매칭되면 전체 타입 인증 통과
     let phoneVerified = false
-    const candidateRecordIds = {} // 연락처 검증 전 임시 저장
+    // CHANGED: 타입당 복수 recordId 지원 — premium: [rec_A, rec_B], partner: [rec_C]
+    const candidateRecordIds = { premium: [], partner: [] }
 
     for (const entry of typeEntries) {
       const entryType = entry.type === 'partner' ? 'partner' : 'premium'
@@ -100,7 +101,6 @@ export default async (request) => {
           if (storedBusinessNumber !== cleanNumber) continue
         } else {
           // filterByFormula fallback
-          // CHANGED: cleanNumber도 sanitizeForFormula 적용 (방어적 코딩)
           const filterFormula = encodeURIComponent(
             `AND(SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}', {${config.accommodationNameField}}='${sanitizeForFormula(accommodationName)}')`
           )
@@ -117,8 +117,8 @@ export default async (request) => {
           record = records[0]
         }
 
-        // CHANGED: recordId를 임시 Map에 저장 (연락처 검증 전)
-        candidateRecordIds[entryType] = record.id
+        // CHANGED: 타입별 배열에 recordId 추가 (복수 신청 지원)
+        candidateRecordIds[entryType].push(record.id)
 
         // 연락처 검증 (아직 미검증 시에만)
         if (!phoneVerified) {
@@ -138,15 +138,17 @@ export default async (request) => {
       return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
     }
 
-    // CHANGED: 연락처 검증 통과 후에만 recordId 확정
-    const verifiedRecordIds = { ...candidateRecordIds }
+    // CHANGED: 연락처 검증 통과 후 availableTypes 확정 (레코드가 있는 타입만)
+    const availableTypes = Object.entries(candidateRecordIds)
+      .filter(([, ids]) => ids.length > 0)
+      .map(([t]) => t)
 
-    // CHANGED: JWT payload에 타입별 recordId + availableTypes 포함
-    const availableTypes = Object.keys(verifiedRecordIds)
+    // CHANGED: JWT payload — premiumRecordIds 배열 + 하위 호환용 premiumRecordId 단건 유지
     const token = signToken(
       {
-        premiumRecordId: verifiedRecordIds.premium || null,
-        partnerRecordId: verifiedRecordIds.partner || null,
+        premiumRecordId: candidateRecordIds.premium[0] || null,
+        premiumRecordIds: candidateRecordIds.premium.length > 0 ? candidateRecordIds.premium : null,
+        partnerRecordId: candidateRecordIds.partner[0] || null,
         availableTypes,
         accommodationName,
         businessNumber: cleanNumber,
@@ -159,6 +161,8 @@ export default async (request) => {
       token,
       accommodationName,
       availableTypes,
+      // CHANGED: 복수 프리미엄 recordId를 프론트에 전달 (대시보드 신청 건 선택용)
+      premiumRecordIds: candidateRecordIds.premium.length > 1 ? candidateRecordIds.premium : undefined,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)
