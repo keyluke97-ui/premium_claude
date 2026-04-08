@@ -120,13 +120,12 @@ export default async (request) => {
       return jsonResponse({ error: '해당 사업자 번호로 등록된 캠핑장이 없습니다.' }, 404)
     }
 
-    // CHANGED: 연락처(전화번호) 기준으로 그룹핑 — 같은 운영자의 프리미엄/파트너를 하나로 묶음
-    // 캠핑장명은 프리미엄/파트너에서 다를 수 있지만 (오타, 지역명 접두사 등)
-    // 연락처가 같으면 동일 운영자로 판단
+    // CHANGED: 캠핑장명 기준으로 그룹핑 — 같은 캠핑장의 복수 신청 + 프리미엄/파트너를 하나로 묶음
+    // (같은 사업자번호로 조회했으므로, 캠핑장명이 같으면 동일 캠핑장)
+    // 연락처가 달라도 같은 캠핑장명이면 한 그룹. 캠핑장명이 다를 때만 별도 그룹.
     const groupedMap = new Map()
     for (const item of flatItems) {
-      // 그룹핑 키: 연락처가 있으면 연락처, 없으면 캠핑장명 fallback
-      const groupKey = item.phone || item.name
+      const groupKey = item.name
       const existing = groupedMap.get(groupKey)
       if (existing) {
         existing.types.push({ type: item.type, recordId: item.recordId, budget: item.budget || '' })
