@@ -69,13 +69,10 @@ export default async (request) => {
       ? types
       : [{ type: type === 'partner' ? 'partner' : 'premium', recordId }]
 
-    // CHANGED: 연락처 검증 — typeEntries 중 하나라도 매칭되면 인증 성공
-    // [설계 의도] lookup에서 연락처 기준으로 그룹핑했으므로,
-    // 같은 그룹 = 같은 운영자(같은 연락처)가 보장됨.
-    // 프리미엄/파트너 중 하나의 연락처만 매칭되면 전체 타입 인증 통과
-    let phoneVerified = false
-    // CHANGED: 타입당 복수 recordId 지원 — premium: [rec_A, rec_B], partner: [rec_C]
-    const candidateRecordIds = { premium: [], partner: [] }
+    // CHANGED: 2패스 인증 — 1) 모든 레코드 조회+사업자번호 검증, 2) 하나라도 전화번호 매칭 시 전체 승인
+    // [설계 의도] 같은 캠핑장이 다른 연락처로 재신청한 경우에도,
+    // 그룹 내 하나의 번호로 본인 확인되면 동일 사업자의 모든 신청 건에 접근 가능
+    const candidateRecords = [] // { entryType, recordId, phoneLastFour }
 
     for (const entry of typeEntries) {
       const entryType = entry.type === 'partner' ? 'partner' : 'premium'
@@ -117,22 +114,31 @@ export default async (request) => {
           record = records[0]
         }
 
-        // CHANGED: 모든 레코드에 대해 전화번호 뒷자리 검증 — 미통과 레코드는 JWT에 포함하지 않음
-        // (같은 사업자번호의 다른 운영자 레코드가 JWT에 섞이는 것을 방지)
         const storedPhone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
-        const storedLastFour = storedPhone.slice(-4)
-        if (!storedLastFour || storedLastFour !== cleanPhoneLastFour) continue
-
-        phoneVerified = true
-        candidateRecordIds[entryType].push(record.id)
+        candidateRecords.push({
+          entryType,
+          recordId: record.id,
+          phoneLastFour: storedPhone.slice(-4),
+        })
       } catch (entryError) {
         console.error(`[auth] ${entryType} 조회 실패:`, entryError.message)
         continue
       }
     }
 
+    // 2패스: 후보 중 하나라도 전화번호 매칭 → 같은 사업자의 전체 레코드 승인
+    const phoneVerified = candidateRecords.some(
+      (r) => r.phoneLastFour && r.phoneLastFour === cleanPhoneLastFour
+    )
+
     if (!phoneVerified) {
       return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
+    }
+
+    // 검증 통과 — 모든 후보 레코드를 타입별로 분류
+    const candidateRecordIds = { premium: [], partner: [] }
+    for (const r of candidateRecords) {
+      candidateRecordIds[r.entryType].push(r.recordId)
     }
 
     // CHANGED: 연락처 검증 통과 후 availableTypes 확정 (레코드가 있는 타입만)
