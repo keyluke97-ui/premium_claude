@@ -265,6 +265,7 @@ export default function InfoStep({ data, onChange, errors }) {
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <Building size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
             우리 숙소를 크리에이터에게 홍보해주세요!
+            <span className="text-xs font-normal ml-1" style={{ color: 'rgba(255,255,255,0.3)' }}>(크리에이터가 취사 선택해서 업로드)</span>
           </label>
           <textarea
             value={data.promotion || ''}
@@ -341,12 +342,11 @@ export default function InfoStep({ data, onChange, errors }) {
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <MessageSquare size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
             추가 요청사항
-            <span className="text-xs font-normal ml-1" style={{ color: 'rgba(255,255,255,0.3)' }}>(크리에이터가 취사 선택해서 업로드)</span>
           </label>
           <textarea
             value={data.additionalRequests || ''}
             onChange={(e) => onChange('additionalRequests', e.target.value)}
-            placeholder="크리에이터에게 홍보해줬으면 하는 포인트를 적어보세요!"
+            placeholder="특별히 원하시는 사항이 있다면 적어주세요"
             rows={3}
             className="w-full text-base text-white resize-y"
             style={{
