@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText } from 'lucide-react'
+import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText, Instagram } from 'lucide-react'
 
 const REGIONS = [
   '경기도(서울, 인천 포함)',
@@ -291,20 +291,62 @@ export default function InfoStep({ data, onChange, errors }) {
           />
         </motion.div>
 
-        {/* 추가 요청사항 */}
+        {/* 캠핑장 인스타그램 (선택) */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: (fields.length + 3) * 0.05 }}
         >
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            <Instagram size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
+            캠핑장 인스타그램
+            <span className="text-xs font-normal ml-1" style={{ color: 'rgba(255,255,255,0.3)' }}>(선택)</span>
+          </label>
+          <input
+            type="text"
+            value={data.instagramId || ''}
+            onChange={(e) => {
+              const value = e.target.value.replace(/@/g, '')
+              onChange('instagramId', value)
+            }}
+            placeholder="인스타그램 아이디(닉네임)를 입력해주세요"
+            className="w-full text-base text-white transition-colors duration-200"
+            style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: '1.5px solid rgba(255,255,255,0.12)',
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              outline: 'none',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#01DF82'
+              e.target.style.boxShadow = '0 0 0 3px rgba(1,223,130,0.15)'
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(255,255,255,0.12)'
+              e.target.style.boxShadow = 'none'
+            }}
+          />
+          <p className="mt-1.5 text-xs" style={{ color: 'rgba(1,223,130,0.5)' }}>
+            입력하시면 협찬 크리에이터가 콘텐츠 게시 시 캠핑장 계정을 태그합니다
+          </p>
+        </motion.div>
+
+        {/* 추가 요청사항 */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: (fields.length + 4) * 0.05 }}
+        >
+          <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <MessageSquare size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
             추가 요청사항
+            <span className="text-xs font-normal ml-1" style={{ color: 'rgba(255,255,255,0.3)' }}>(크리에이터가 취사 선택해서 업로드)</span>
           </label>
           <textarea
             value={data.additionalRequests || ''}
             onChange={(e) => onChange('additionalRequests', e.target.value)}
-            placeholder="특별히 원하시는 사항이 있다면 적어주세요"
+            placeholder="크리에이터에게 홍보해줬으면 하는 포인트를 적어보세요!"
             rows={3}
             className="w-full text-base text-white resize-y"
             style={{

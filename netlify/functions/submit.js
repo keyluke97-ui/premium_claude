@@ -98,6 +98,7 @@ export default async (req) => {
             // 동의 & 비고
             '동의합니다.': '동의',
             '프리미엄 협찬 관련 동의 사항': '동의',
+            '캠지기인스타그램': formData.instagramId || '',
             '비고': formData.additionalRequests || '',
           },
         },

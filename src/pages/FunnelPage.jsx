@@ -28,6 +28,7 @@ const INITIAL_FORM = {
   email: '',
   businessNumber: '',
   region: '',
+  instagramId: '',
   siteTypes: [],
   promotion: '',
   additionalRequests: '',
