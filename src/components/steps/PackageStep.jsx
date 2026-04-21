@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp, Search, BadgePercent } from 'lucide-react'
 import PACKAGES, { PRICING, DISCOUNT_PRICING, calcCrewPrice, calcCrewPriceWithVat, computeDiscountedPlan } from '../../data/packages'
+import { checkFirstTime } from '../../utils/firstTimeCheck'
 import CreatorGuideSheet from '../CreatorGuideSheet'
 
 function formatPrice(number) {
@@ -175,38 +176,22 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   }, [])
 
   const handleBizCheck = async () => {
-    const clean = bizNumber.replace(/[^0-9]/g, '')
-    if (!/^\d{10}$/.test(clean)) {
-      setBizError('올바른 사업자 번호를 입력해주세요 (예: 123-45-67890)')
-      return
-    }
-
     setBizLoading(true)
     setBizError('')
-    try {
-      const res = await fetch('/api/check-first-time', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessNumber: bizNumber }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setBizError(data.error || '조회 중 오류가 발생했습니다.')
-        return
-      }
-      setBizChecked(true)
-      setIsFirstTime(data.isFirstTime)
-      sessionStorage.setItem('bizNumber', bizNumber)
-      sessionStorage.setItem('isFirstTime', String(data.isFirstTime))
-      // 이미 선택된 플랜이 있으면 할인 적용/해제
-      if (selected && selected.id !== 'custom') {
-        const originalPlan = pkg?.plans?.find(p => p.id === selected.id) || selected
-        onSelect(data.isFirstTime ? computeDiscountedPlan(originalPlan) : originalPlan)
-      }
-    } catch {
-      setBizError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
-    } finally {
-      setBizLoading(false)
+    const result = await checkFirstTime(bizNumber)
+    setBizLoading(false)
+    if (result.error) {
+      setBizError(result.error)
+      return
+    }
+    setBizChecked(true)
+    setIsFirstTime(result.isFirstTime)
+    sessionStorage.setItem('bizNumber', bizNumber)
+    sessionStorage.setItem('isFirstTime', String(result.isFirstTime))
+    // 이미 선택된 플랜이 있으면 할인 적용/해제
+    if (selected && selected.id !== 'custom') {
+      const originalPlan = pkg?.plans?.find(p => p.id === selected.id) || selected
+      onSelect(result.isFirstTime ? computeDiscountedPlan(originalPlan) : originalPlan)
     }
   }
 

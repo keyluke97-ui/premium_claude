@@ -376,6 +376,8 @@ export default function FunnelPage() {
                 data={formData}
                 onChange={handleFormChange}
                 errors={errors}
+                plan={selectedPlan}
+                onPlanUpdate={setSelectedPlan}
               />
             )}
             {step === 4 && (

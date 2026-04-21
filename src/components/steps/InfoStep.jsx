@@ -1,6 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText, Instagram } from 'lucide-react'
+import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText, Instagram, Sparkles } from 'lucide-react'
+import { checkFirstTime } from '../../utils/firstTimeCheck'
+import { computeDiscountedPlan } from '../../data/packages'
+import { BRAND_GREEN } from '../../constants/designTokens'
 
 const REGIONS = [
   '경기도(서울, 인천 포함)',
@@ -58,15 +61,38 @@ const fields = [
 // CHANGED: 이지캠핑, 펜션 추가 + 가나다순 정렬
 const SITE_TYPES = ['글램핑', '두가족존', '방갈로', '오토캠핑', '이지캠핑', '차박', '카라반', '펜션']
 
-export default function InfoStep({ data, onChange, errors }) {
+export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate }) {
   // PackageStep에서 입력한 사업자번호를 sessionStorage에서 복원
   const savedBizNumber = typeof window !== 'undefined' ? sessionStorage.getItem('bizNumber') : null
+  const alreadyCheckedInPackageStep = !!savedBizNumber
+
+  const [bizBannerVisible, setBizBannerVisible] = useState(false)
 
   useEffect(() => {
     if (savedBizNumber && !data.businessNumber) {
       onChange('businessNumber', savedBizNumber)
     }
   }, [])
+
+  // InfoStep 단계에서 사업자번호 blur 시 첫 신청 여부 조회 → 할인 사후 적용
+  const handleBizBlur = async () => {
+    if (alreadyCheckedInPackageStep) return
+    const biz = data.businessNumber || ''
+    const clean = biz.replace(/[^0-9]/g, '')
+    if (!/^\d{10}$/.test(clean)) return
+    const result = await checkFirstTime(biz)
+    if (result.error) return
+    sessionStorage.setItem('bizNumber', biz)
+    sessionStorage.setItem('isFirstTime', String(result.isFirstTime))
+    if (result.isFirstTime) {
+      setBizBannerVisible(true)
+      if (plan && plan.id !== 'custom' && plan.discountEligible) {
+        onPlanUpdate?.(computeDiscountedPlan(plan))
+      }
+    } else {
+      setBizBannerVisible(false)
+    }
+  }
 
   const selectedSiteTypes = data.siteTypes || []
 
@@ -138,6 +164,9 @@ export default function InfoStep({ data, onChange, errors }) {
                     onBlur={(e) => {
                       e.target.style.borderColor = hasError ? '#FF383C' : 'rgba(255,255,255,0.12)'
                       e.target.style.boxShadow = 'none'
+                      if (field.key === 'businessNumber' && !isBizReadOnly) {
+                        handleBizBlur()
+                      }
                     }}
                   />
                 )
@@ -146,6 +175,20 @@ export default function InfoStep({ data, onChange, errors }) {
                 <div className="flex items-center gap-1 mt-1.5 text-xs" style={{ color: '#FF383C' }}>
                   <AlertCircle size={12} />
                   {hasError}
+                </div>
+              )}
+              {field.key === 'businessNumber' && bizBannerVisible && (
+                <div
+                  className="mt-2 px-3 py-2 rounded-lg flex items-start gap-2 text-xs"
+                  style={{
+                    backgroundColor: 'rgba(1,223,130,0.1)',
+                    border: '1px solid rgba(1,223,130,0.25)',
+                  }}
+                >
+                  <Sparkles size={14} style={{ color: BRAND_GREEN, flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ color: BRAND_GREEN, fontWeight: 600, lineHeight: 1.5 }}>
+                    첫 신청 할인 대상이에요! 선택한 플랜에 할인가가 자동 반영됐어요.
+                  </span>
                 </div>
               )}
             </motion.div>
@@ -341,12 +384,12 @@ export default function InfoStep({ data, onChange, errors }) {
         >
           <label className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
             <MessageSquare size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />
-            추가 요청사항
+            담당자에게 한마디
           </label>
           <textarea
             value={data.additionalRequests || ''}
             onChange={(e) => onChange('additionalRequests', e.target.value)}
-            placeholder="특별히 원하시는 사항이 있다면 적어주세요"
+            placeholder="담당자에게 전하고 싶은 말이나 궁금한 점을 남겨주세요. (요청사항을 보장하지 않으며, 크리에이터에게는 전달되지 않아요)"
             rows={3}
             className="w-full text-base text-white resize-y"
             style={{

@@ -7,3 +7,4 @@ dist-new/
 .DS_Store
 *.log
 vite.config.js.timestamp-*
+.claude/
