@@ -1,5 +1,5 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock } from 'lucide-react'
 import { useState } from 'react'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
@@ -7,6 +7,25 @@ const DASHBOARD_LOGIN_PATH = '/dashboard/login'
 
 function formatPrice(n) {
   return n.toLocaleString('ko-KR') + '원'
+}
+
+// 클립보드 복사 헬퍼 — clipboard API 실패 시 execCommand로 fallback
+function copyToClipboard(text, onSuccess) {
+  const fallback = () => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy'); onSuccess() } catch {} // eslint-disable-line
+    document.body.removeChild(ta)
+  }
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(onSuccess).catch(fallback)
+  } else {
+    fallback()
+  }
 }
 
 function SummaryRow({ label, value }) {
@@ -18,11 +37,42 @@ function SummaryRow({ label, value }) {
   )
 }
 
+// 앞으로 일정 타임라인 스텝
+function TimelineItem({ step, title, detail, highlight = false }) {
+  return (
+    <li className="flex gap-3">
+      <div
+        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+        style={{
+          backgroundColor: highlight ? 'rgba(1,223,130,0.15)' : 'rgba(255,255,255,0.06)',
+          color: highlight ? '#01DF82' : 'rgba(255,255,255,0.5)',
+        }}
+      >
+        {step}
+      </div>
+      <div className="flex-1 pt-0.5">
+        <div
+          className="text-sm font-semibold"
+          style={{ color: highlight ? '#fff' : 'rgba(255,255,255,0.85)' }}
+        >
+          {title}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          {detail}
+        </div>
+      </div>
+    </li>
+  )
+}
+
 export default function CompleteStep({ budget, plan, formData, crew }) {
   const [copied, setCopied] = useState(false)
-  // hasCopied: 복사 버튼 최초 클릭 후 true로 전환, 이후 리셋 없음 → 대시보드 링크 노출 트리거
-  const [hasCopied, setHasCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const accountNumber = '225-910068-71204'
+  const dashboardUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}${DASHBOARD_LOGIN_PATH}`
+      : DASHBOARD_LOGIN_PATH
 
   // 가격 계산 (plan에 priceWithVat이 없을 수 있음)
   const ICON_PRICE = 300000
@@ -37,30 +87,17 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
   })()
 
   const handleCopy = () => {
-    const doCopy = () => {
+    copyToClipboard(accountNumber, () => {
       setCopied(true)
-      setHasCopied(true) // CHANGED: 최초 복사 시 대시보드 링크 노출
       setTimeout(() => setCopied(false), 2000)
-    }
-    // clipboard API 지원 시
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(accountNumber).then(doCopy).catch(() => {
-        // fallback: execCommand
-        fallbackCopy()
-      })
-    } else {
-      fallbackCopy()
-    }
-    function fallbackCopy() {
-      const ta = document.createElement('textarea')
-      ta.value = accountNumber
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      try { document.execCommand('copy'); doCopy() } catch {} // eslint-disable-line
-      document.body.removeChild(ta)
-    }
+    })
+  }
+
+  const handleLinkCopy = () => {
+    copyToClipboard(dashboardUrl, () => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    })
   }
 
   return (
@@ -180,36 +217,101 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
         </div>
       </motion.div>
 
-      {/* 대시보드 링크 — 계좌 복사 후 노출 */}
-      <AnimatePresence>
-        {hasCopied && (
-          <motion.a
-            href={DASHBOARD_LOGIN_PATH}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="w-full flex items-center justify-between px-5 py-4 rounded-2xl mt-4"
+      {/* 앞으로 일정 타임라인 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="w-full rounded-2xl p-5 text-left mt-4"
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <CalendarClock size={14} style={{ color: '#01DF82' }} />
+          <span className="text-sm font-bold text-white">앞으로 일정</span>
+        </div>
+        <ol className="flex flex-col gap-3">
+          <TimelineItem step="1" title="입금 확인" detail="영업일 내 확인" />
+          <TimelineItem step="2" title="크리에이터 모집 & 매칭" detail="공고 후 크리에이터 신청 순" />
+          <TimelineItem
+            step="3"
+            title="매칭 후 2개월 이내 방문"
+            detail="크리에이터가 직접 방문해 1박 체험"
+            highlight
+          />
+          <TimelineItem
+            step="4"
+            title="퇴실 후 14일 이내 콘텐츠 업로드"
+            detail="채널별 콘텐츠 게시 완료"
+            highlight
+          />
+        </ol>
+      </motion.div>
+
+      {/* 대시보드 링크 저장 블록 — 상시 노출 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="w-full rounded-2xl p-5 text-left mt-4"
+        style={{
+          backgroundColor: 'rgba(1,223,130,0.05)',
+          border: '1px solid rgba(1,223,130,0.22)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <LayoutDashboard size={14} style={{ color: '#01DF82' }} />
+          <span className="text-sm font-bold text-white">대시보드 링크를 저장해 두세요</span>
+        </div>
+        <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          매칭된 크리에이터, 체크인일, 콘텐츠를 한 곳에서 확인할 수 있어요.
+        </p>
+
+        <div
+          className="flex items-center justify-between gap-2 p-3 rounded-lg mb-3"
+          style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}
+        >
+          <span
+            className="text-xs truncate"
+            style={{ color: '#01DF82', fontFamily: 'ui-monospace, monospace' }}
+          >
+            {dashboardUrl}
+          </span>
+          <button
+            onClick={handleLinkCopy}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
             style={{
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              textDecoration: 'none',
-              display: 'flex',
+              backgroundColor: linkCopied ? 'rgba(1,223,130,0.15)' : 'rgba(255,255,255,0.08)',
+              color: linkCopied ? '#01DF82' : 'rgba(255,255,255,0.7)',
+              border: 'none',
+              cursor: 'pointer',
             }}
           >
-            <div className="flex items-center gap-3">
-              <LayoutDashboard size={16} style={{ color: '#01DF82', flexShrink: 0 }} />
-              <div className="text-left">
-                <div className="text-sm font-semibold text-white">신청 현황 확인하기</div>
-                <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  입금 완료 후 대시보드에서 진행 상황을 확인하세요
-                </div>
-              </div>
-            </div>
-            <span className="text-sm" style={{ color: 'rgba(255,255,255,0.25)', flexShrink: 0 }}>→</span>
-          </motion.a>
-        )}
-      </AnimatePresence>
+            <Copy size={12} />
+            {linkCopied ? '복사됨!' : '복사'}
+          </button>
+        </div>
+
+        <a
+          href={DASHBOARD_LOGIN_PATH}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-lg mb-3"
+          style={{
+            backgroundColor: 'rgba(1,223,130,0.1)',
+            textDecoration: 'none',
+          }}
+        >
+          <span className="text-sm font-semibold" style={{ color: '#01DF82' }}>
+            지금 대시보드 열어보기
+          </span>
+          <span className="text-sm" style={{ color: '#01DF82' }}>→</span>
+        </a>
+
+        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          복사 후 카카오톡 '나에게' 또는 브라우저 북마크에 저장해두세요. 동일 링크가 이메일에도 발송됩니다.
+        </p>
+      </motion.div>
 
       {/* 안내 메시지 */}
       <motion.p

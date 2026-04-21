@@ -27,6 +27,23 @@ function formatDate(dateString) {
   }
 }
 
+/** 업로드 예정일: 입실일 + 15일(1박 + 14일), 없으면 null */
+function formatUploadDeadline(checkInDate) {
+  if (!checkInDate) return null
+  try {
+    const date = new Date(checkInDate)
+    if (isNaN(date.getTime())) return null
+    date.setDate(date.getDate() + 15)
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    const dayOfWeek = dayNames[date.getDay()]
+    return `${month}/${day}(${dayOfWeek})`
+  } catch {
+    return null
+  }
+}
+
 /** 단일 크리에이터 카드 */
 function CreatorCard({ creator, index }) {
   // CHANGED: 알 수 없는 등급은 중립색 fallback
@@ -90,11 +107,16 @@ function CreatorCard({ creator, index }) {
         </span>
       </div>
 
-      {/* 하단: 체크인 / 사이트 / 콘텐츠 */}
-      {/* CHANGED: 입실일·사이트가 null이면 '조율 중' 상태로 표시 */}
+      {/* 하단: 체크인 / 사이트 / 업로드 예정 / 콘텐츠 */}
+      {/* CHANGED: 입실일·사이트가 null이면 '조율 중' 상태로 표시, 업로드 예정은 입실일 + 15일 */}
       <div className="grid grid-cols-2 gap-2">
         <DetailItem label="체크인" value={formatDate(creator.checkInDate)} pending={!creator.checkInDate} />
         <DetailItem label="사이트" value={creator.site || null} pending={!creator.site} />
+        <DetailItem
+          label="업로드 예정"
+          value={formatUploadDeadline(creator.checkInDate)}
+          pending={!creator.checkInDate}
+        />
         {creator.contentLink && (
           <div className="col-span-2">
             <span className="text-xs block mb-1" style={{ color: TEXT_MUTED }}>콘텐츠</span>
