@@ -74,24 +74,28 @@ export default function PartnerStatusCard({ campaign }) {
 
   const {
     accommodationName,
-    packageType,
-    weekdayDiscount,
-    weekendDiscount,
-    accommodationType,
+    discount,
+    couponApplyDays,
     recruitmentStatus,
     iconRequested,
     partnerRequested,
     risingRequested,
+    iconAvailable,
+    partnerAvailable,
+    risingAvailable,
+    couponPerCreator,
+    totalFollowerCoupon,
     visitStartDate,
     visitEndDate,
     couponStartDate,
     couponEndDate,
-    holidayCoupon,
     introduction,
     contact,
   } = campaign
 
   const totalRequested = iconRequested + partnerRequested + risingRequested
+  const totalAvailable = iconAvailable + partnerAvailable + risingAvailable
+  const expectedMaxBurden = (totalFollowerCoupon || 0) * (discount || 0)
 
   return (
     <motion.div
@@ -139,54 +143,79 @@ export default function PartnerStatusCard({ campaign }) {
 
       {/* 기본 정보 */}
       <div className="divide-y" style={{ borderColor: BORDER_COLOR }}>
-        <InfoRow label="패키지 유형" value={packageType} />
-        <InfoRow label="숙박 타입" value={accommodationType} />
+        <InfoRow label="쿠폰 적용 요일" value={couponApplyDays} />
         <InfoRow label="연락처" value={contact} />
       </div>
 
-      {/* 할인 금액 */}
+      {/* 팔로워 할인 금액 (v3: 단일) */}
       <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
         <p className="text-xs font-medium mb-3" style={{ color: TEXT_MUTED }}>
-          크리에이터 할인 금액
+          팔로워 할인 금액
         </p>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-white">평일 할인</span>
-            <span className="text-sm font-medium" style={{ color: BRAND_GREEN }}>
-              {formatCurrency(weekdayDiscount)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-white">주말 할인</span>
-            <span className="text-sm font-medium" style={{ color: BRAND_GREEN }}>
-              {formatCurrency(weekendDiscount)}
-            </span>
-          </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-white">쿠폰 1건 사용 시</span>
+          <span className="text-sm font-medium" style={{ color: BRAND_GREEN }}>
+            {formatCurrency(discount)}
+          </span>
         </div>
       </div>
 
-      {/* 모집 인원 */}
+      {/* 등급별 모집 현황 (v3) */}
       {totalRequested > 0 && (
         <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
           <p className="text-xs font-medium mb-3" style={{ color: TEXT_MUTED }}>
-            모집 희망 인원
+            등급별 모집 현황
           </p>
           <div className="space-y-2">
             {iconRequested > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white">⭐️ 아이콘 {iconRequested}명</span>
+                <span className="text-sm text-white">⭐️ 아이콘</span>
+                <span className="text-sm" style={{ color: BRAND_GREEN }}>
+                  잔여 {iconAvailable} / 모집 {iconRequested}명
+                </span>
               </div>
             )}
             {partnerRequested > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white">✔️ 파트너 {partnerRequested}명</span>
+                <span className="text-sm text-white">✔️ 파트너</span>
+                <span className="text-sm" style={{ color: BRAND_GREEN }}>
+                  잔여 {partnerAvailable} / 모집 {partnerRequested}명
+                </span>
               </div>
             )}
             {risingRequested > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white">🔥 라이징 {risingRequested}명</span>
+                <span className="text-sm text-white">🔥 라이징</span>
+                <span className="text-sm" style={{ color: BRAND_GREEN }}>
+                  잔여 {risingAvailable} / 모집 {risingRequested}명
+                </span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 쿠폰 & 예상 할인 부담 (v3) */}
+      {totalFollowerCoupon > 0 && (
+        <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
+          <p className="text-xs font-medium mb-3" style={{ color: TEXT_MUTED }}>
+            쿠폰 & 예상 부담
+          </p>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-white">인당 팔로워 쿠폰</span>
+              <span className="text-sm font-medium text-white">{couponPerCreator}장</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-white">총 팔로워 쿠폰</span>
+              <span className="text-sm font-medium text-white">{totalFollowerCoupon}장</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-white">예상 최대 할인 부담</span>
+              <span className="text-sm font-medium" style={{ color: BRAND_GREEN }}>
+                최대 {formatCurrency(expectedMaxBurden)}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -208,12 +237,6 @@ export default function PartnerStatusCard({ campaign }) {
               startDate={couponStartDate}
               endDate={couponEndDate}
             />
-            {holidayCoupon && (
-              <div className="flex justify-between items-center">
-                <span className="text-xs" style={{ color: TEXT_MUTED }}>공휴일 쿠폰</span>
-                <span className="text-xs" style={{ color: BRAND_GREEN }}>적용</span>
-              </div>
-            )}
           </div>
         </div>
       )}
