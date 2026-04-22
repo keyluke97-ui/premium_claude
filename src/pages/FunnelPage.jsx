@@ -10,6 +10,7 @@ import InfoStep from '../components/steps/InfoStep'
 import AgreementStep from '../components/steps/AgreementStep'
 import CompleteStep from '../components/steps/CompleteStep'
 import { submitApplication } from '../utils/airtable'
+import PACKAGES from '../data/packages'
 
 /*
  * 퍼널 단계:
@@ -79,6 +80,30 @@ export default function FunnelPage() {
   const [submitError, setSubmitError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const submitLockRef = useRef(false)
+
+  // ── ?plan= 쿼리 수신: 외부에서 특정 플랜 지정 시 자동 프리셀렉트 (CHANGED: V4 프로토타입 챗봇·카드에서 딥링크 지원) ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const planId = params.get('plan')
+    if (!planId) return
+
+    // 4개 가격대 × 3플랜 = 12플랜 중 id 매칭 검색
+    for (const budgetKey of Object.keys(PACKAGES)) {
+      const tier = PACKAGES[budgetKey]
+      const match = tier.plans.find((p) => p.id === planId)
+      if (match) {
+        setBudget(Number(budgetKey))
+        setSelectedPlan(match)
+        setStep(2) // 패키지 상세 선택 단계로 점프
+        setDirection(1)
+        // URL 에서 plan 쿼리 제거 (브라우저 히스토리 정리)
+        const cleanUrl = window.location.pathname + window.location.hash
+        window.history.replaceState({ step: 2 }, '', cleanUrl)
+        break
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── 브라우저 뒤로가기 방어 (history API) ──
   useEffect(() => {
