@@ -106,22 +106,34 @@ export default async (request) => {
     // 캠페인 데이터 구성
     const campaignData = {
       accommodationName: campaignFields['캠핑장명'] || '',
-      packageType: campaignFields['패키지 유형'] || '',
-      weekdayDiscount: campaignFields['평일 할인 금액'] || 0,
-      weekendDiscount: campaignFields['주말 할인 금액'] || 0,
-      accommodationType: campaignFields['숙박 타입'] || '',
+
+      // v3: 단일 할인 + 쿠폰 적용 요일
+      discount: campaignFields['할인 금액'] || 0,
+      couponApplyDays: campaignFields['쿠폰 적용 요일'] || '',
+
       recruitmentStatus: campaignFields['모집 상태'] || '오픈전',
-      recruitmentStatusLabel: RECRUITMENT_STATUS_LABELS[campaignFields['모집 상태']] || campaignFields['모집 상태'] || '오픈전',
+      recruitmentStatusLabel:
+        RECRUITMENT_STATUS_LABELS[campaignFields['모집 상태']] ||
+        campaignFields['모집 상태'] ||
+        '오픈전',
+
+      // v3: 등급별 필드 이제 값이 존재
       iconRequested: campaignFields['⭐️ 모집 희망 인원'] || 0,
       partnerRequested: campaignFields['✔️ 모집 희망 인원'] || 0,
       risingRequested: campaignFields['🔥 모집 희망 인원'] || 0,
-      // CHANGED: 신청 가능 인원은 단일 number 필드 (사용자가 수동 생성)
-      availableSlots: campaignFields['신청가능인원'] || 0,
+      iconAvailable: campaignFields['⭐️ 신청 가능 인원'] || 0,
+      partnerAvailable: campaignFields['✔️ 신청 가능 인원'] || 0,
+      risingAvailable: campaignFields['🔥 신청 가능 인원'] || 0,
+
+      // v3: 쿠폰 수량
+      couponPerCreator: campaignFields['인당 팔로워 쿠폰'] || 0,
+      totalFollowerCoupon: campaignFields['총 팔로워 쿠폰 수'] || 0,
+
       visitStartDate: campaignFields['크리에이터 방문 가능 시작일'] || null,
       visitEndDate: campaignFields['크리에이터 방문 가능 종료일'] || null,
       couponStartDate: campaignFields['쿠폰 유효 시작일'] || null,
       couponEndDate: campaignFields['쿠폰 유효 종료일'] || null,
-      holidayCoupon: campaignFields['공휴일 쿠폰 적용'] === true,
+
       introduction: campaignFields['숙소 소개'] || '',
       contact: campaignFields['연락처'] || '',
     }
@@ -170,6 +182,7 @@ export default async (request) => {
 
     // 모집 현황 집계
     const totalRequested = campaignData.iconRequested + campaignData.partnerRequested + campaignData.risingRequested
+    const totalAvailable = campaignData.iconAvailable + campaignData.partnerAvailable + campaignData.risingAvailable
     const confirmedCreators = creators.filter(creator => creator.status === '확정')
     const totalConfirmed = confirmedCreators.length
 
@@ -178,6 +191,7 @@ export default async (request) => {
       campaign: campaignData,
       creators,
       totalRequested,
+      totalAvailable,
       totalConfirmed,
       totalApplied: creators.length,
     })
