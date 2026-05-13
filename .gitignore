@@ -8,3 +8,4 @@ dist-new/
 *.log
 vite.config.js.timestamp-*
 .claude/
+.cpf/
