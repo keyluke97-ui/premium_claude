@@ -5,7 +5,6 @@ import { lazy, Suspense } from 'react'
 const FunnelPage = lazy(() => import('./pages/FunnelPage'))
 const LoginPage = lazy(() => import('./pages/dashboard/LoginPage'))
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'))
-const ReportPage = lazy(() => import('./pages/dashboard/ReportPage'))
 
 function LoadingFallback() {
   return (
@@ -31,9 +30,6 @@ export default function App() {
         {/* 캠지기 대시보드 */}
         <Route path="/dashboard/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-
-        {/* 운영팀 — 모집 부진 진단 리포트 (링크 노출 기반 게이팅, 인증 없음) */}
-        <Route path="/dashboard/report" element={<ReportPage />} />
 
         {/* 그 외 경로는 퍼널로 리다이렉트 */}
         <Route path="*" element={<Navigate to="/" replace />} />
