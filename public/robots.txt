@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /dashboard/report
+Disallow: /api/dashboard/report
