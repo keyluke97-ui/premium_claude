@@ -158,6 +158,22 @@ export default async (request) => {
       notes: formFields['비고'] || '',
     }
 
+    // CHANGED: 팔로워 쿠폰 이벤트 조건 read (캠지기 모집 폼 통합 레코드 기준)
+    // 신청 시점엔 dates 비어있고 일수만 채워짐 → 매칭 후 운영자가 dates 입력. 둘 다 전달.
+    const couponEvent = {
+      active: formFields['쿠폰이벤트희망'] === true,
+      discount: formFields['할인 금액'] || 0,
+      couponApplyDays: formFields['쿠폰 적용 요일'] || '',
+      couponPerCreator: formFields['인당 팔로워 쿠폰'] || 0,
+      totalFollowerCoupon: formFields['총 팔로워 쿠폰 수'] || 0,
+      visitPeriodDays: formFields['방문 가능 기간(일수)'] || null,
+      couponPeriodDays: formFields['쿠폰 유효 기간(일수)'] || null,
+      visitStartDate: formFields['크리에이터 방문 가능 시작일'] || null,
+      visitEndDate: formFields['크리에이터 방문 가능 종료일'] || null,
+      couponStartDate: formFields['쿠폰 유효 시작일'] || null,
+      couponEndDate: formFields['쿠폰 유효 종료일'] || null,
+    }
+
     // CHANGED: 배정 인원을 캠지기 모집 폼의 카운트 필드에서 직접 읽음 (유료 오퍼 테이블 조회 제거)
     const assignedByGrade = {
       icon: formFields['아이콘 크리에이터 신청 수'] || 0,
@@ -209,6 +225,7 @@ export default async (request) => {
       creators,
       canRefund,
       isFullyRecruited,
+      couponEvent,
     })
   } catch (error) {
     return jsonResponse({ error: error.message }, 500)
