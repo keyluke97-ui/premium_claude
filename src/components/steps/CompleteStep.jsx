@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, ArrowRight, Ticket } from 'lucide-react'
+import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, Ticket } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { formatDiscount } from '../../utils/coupons'
 
@@ -477,21 +477,17 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
                 </div>
               </div>
 
-              <a
-                href={DASHBOARD_LOGIN_PATH}
-                className="w-full flex items-center justify-center gap-1.5 py-3.5 rounded-xl mb-2 font-bold text-sm"
-                style={{ backgroundColor: '#01DF82', color: '#000', textDecoration: 'none' }}
-              >
-                지금 대시보드 열어보기
-                <ArrowRight size={16} />
-              </a>
               <button
                 onClick={() => setShowWelcome(false)}
-                className="w-full py-3 rounded-xl text-sm font-semibold"
-                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+                className="w-full py-3.5 rounded-xl text-sm font-bold"
+                style={{ backgroundColor: '#01DF82', color: '#000', border: 'none', cursor: 'pointer' }}
               >
                 확인했어요
               </button>
+              <p className="text-xs text-center mt-2.5" style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+                먼저 아래 <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>입금 안내</span>를 확인해 주세요.
+                대시보드는 입금 후 이용하시면 됩니다.
+              </p>
             </motion.div>
           </motion.div>
         )}
