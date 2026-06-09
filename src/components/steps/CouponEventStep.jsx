@@ -1,7 +1,7 @@
 // CouponEventStep.jsx - 팔로워 쿠폰 이벤트 (프리미엄 퍼널 선택형 스텝)
 // 기본 ON(옵트아웃) + 추천 프리셋 사전선택. "실 예약 전환" 프레이밍으로 옵트인 유도.
 // 쿠폰 배포 크리에이터는 별도 모집하지 않고, 선택한 프리미엄 플랜의 crew(아이콘/파트너/라이징)에서 파생함.
-// 기간은 일수(N일)만 표기 — 구체적 dates는 매칭일 확정 후 운영자가 채움 (약관 제11조 정합).
+// 기간은 일수(N일)로 표기. 신청 시 신청일 기준으로 날짜가 환산되어 저장되며, 운영자가 매칭 후 보정 가능.
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wallet, Calendar, Users, Ticket, Clock, Minus, Plus, HelpCircle, Sparkles, TrendingUp, Gift, SlidersHorizontal } from 'lucide-react'
@@ -54,7 +54,7 @@ function PresetButton({ label, sublabel, isSelected, onClick }) {
   )
 }
 
-// ── 기간 표시 카드 (일수 기반, 매칭일 확정 후 운영자가 dates 채움) ──
+// ── 기간 표시 카드 (일수 기반, "신청일부터 N일") ──
 function PeriodDisplayCard({ totalDays, subText }) {
   return (
     <div
@@ -62,7 +62,7 @@ function PeriodDisplayCard({ totalDays, subText }) {
       style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
       <div className="text-base font-bold text-white" style={{ letterSpacing: -0.3 }}>
-        매칭일부터 <span style={{ color: '#01DF82' }}>{totalDays}일</span>
+        신청일부터 <span style={{ color: '#01DF82' }}>{totalDays}일</span>
       </div>
       {subText && (
         <div className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{subText}</div>

@@ -57,8 +57,23 @@ export default async (req) => {
 
     // CHANGED: 팔로워 쿠폰 이벤트 필드 매핑 (옵트인 시에만. OFF면 빈 객체 → 기존 프리미엄 신청과 동일)
     // 쿠폰 배포 크리에이터 = 프리미엄 crew와 동일인 → 기존 '⭐️/✔️/🔥 모집 인원' 필드를 재사용.
-    // 기간은 일수(N일)만 전송 — 구체적 dates는 매칭일 확정 후 운영자가 채움(약관 제11조 "매칭 후 2개월" 정합).
+    // 기간(일수)은 신청자 선택값. 날짜 4개는 '신청일' 기준으로 환산해 저장(운영자가 매칭 후 보정 가능).
     // '총 팔로워 쿠폰 수'(Airtable formula) = (⭐️+✔️+🔥 모집 인원) × 인당 팔로워 쿠폰 으로 자동 계산.
+    // 신청일 기준 날짜 환산 (KST 기준, 날짜 전용 필드이므로 YYYY-MM-DD)
+    const couponDates = couponEvent?.enabled
+      ? (() => {
+          const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
+          const toDateStr = (offsetDays) =>
+            new Date(kstNow.getTime() + offsetDays * 86400000).toISOString().slice(0, 10)
+          return {
+            '크리에이터 방문 가능 시작일': toDateStr(0),
+            '크리에이터 방문 가능 종료일': toDateStr(couponEvent.visitPeriodDays || 0),
+            '쿠폰 유효 시작일': toDateStr(0),
+            '쿠폰 유효 종료일': toDateStr(couponEvent.couponPeriodDays || 0),
+          }
+        })()
+      : {}
+
     const couponFields = couponEvent?.enabled
       ? {
           '쿠폰이벤트희망': true,
@@ -68,6 +83,7 @@ export default async (req) => {
           '쿠폰 이벤트 약관 동의': '동의',
           '방문 가능 기간(일수)': couponEvent.visitPeriodDays || 0,
           '쿠폰 유효 기간(일수)': couponEvent.couponPeriodDays || 0,
+          ...couponDates,
         }
       : { '쿠폰이벤트희망': false }
 

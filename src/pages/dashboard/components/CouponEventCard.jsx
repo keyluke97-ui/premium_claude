@@ -21,13 +21,13 @@ function formatDate(dateString) {
   return `${month}/${day}`
 }
 
-/** 일정 행 — dates 있으면 날짜 범위, 없으면 '매칭일부터 N일', 둘 다 없으면 미렌더 */
+/** 일정 행 — dates 있으면 날짜 범위, 없으면 '신청일부터 N일', 둘 다 없으면 미렌더 */
 function PeriodRow({ label, startDate, endDate, periodDays }) {
   let value
   if (startDate && endDate) {
     value = `${formatDate(startDate)} ~ ${formatDate(endDate)}`
   } else if (periodDays) {
-    value = `매칭일부터 ${periodDays}일`
+    value = `신청일부터 ${periodDays}일`
   } else {
     return null
   }
@@ -142,7 +142,7 @@ export default function CouponEventCard({ couponEvent }) {
         </p>
       </div>
 
-      {/* 일정 — 매칭 전엔 '매칭일부터 N일', 매칭 후엔 날짜 범위 */}
+      {/* 일정 — 날짜 있으면 범위, 없으면 '신청일부터 N일' */}
       {hasSchedule && (
         <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
           <p className="text-xs font-medium mb-3" style={{ color: TEXT_MUTED }}>일정</p>

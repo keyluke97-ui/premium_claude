@@ -273,8 +273,8 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
               label="할인 조건"
               value={`건당 ${formatDiscount(couponSummary.discount)}${couponSummary.applyDaysLabel ? ` · ${couponSummary.applyDaysLabel}` : ''}`}
             />
-            <SummaryRow label="쿠폰 유효 기간" value={`매칭일부터 ${couponSummary.couponPeriodDays}일`} />
-            <SummaryRow label="방문 가능 기간" value={`매칭일부터 ${couponSummary.visitPeriodDays}일`} />
+            <SummaryRow label="쿠폰 유효 기간" value={`신청일부터 ${couponSummary.couponPeriodDays}일`} />
+            <SummaryRow label="방문 가능 기간" value={`신청일부터 ${couponSummary.visitPeriodDays}일`} />
           </div>
         </motion.div>
       )}
