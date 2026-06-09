@@ -47,13 +47,29 @@ export default async (req) => {
 
   try {
     const body = await req.json()
-    const { budget, formData, crew, planTier, selectedPlan } = body
+    const { budget, formData, crew, planTier, selectedPlan, couponEvent } = body
 
     // 단가 (첫 신청 할인 적용 여부에 따라 분기)
     const isDiscounted = selectedPlan?.isDiscounted === true
     const ICON_PRICE = isDiscounted ? 250000 : 300000
     const PARTNER_PRICE = isDiscounted ? 120000 : 150000
     const RISING_PRICE = isDiscounted ? 70000 : 100000
+
+    // CHANGED: 팔로워 쿠폰 이벤트 필드 매핑 (옵트인 시에만. OFF면 빈 객체 → 기존 프리미엄 신청과 동일)
+    // 쿠폰 배포 크리에이터 = 프리미엄 crew와 동일인 → 기존 '⭐️/✔️/🔥 모집 인원' 필드를 재사용.
+    // 기간은 일수(N일)만 전송 — 구체적 dates는 매칭일 확정 후 운영자가 채움(약관 제11조 "매칭 후 2개월" 정합).
+    // '총 팔로워 쿠폰 수'(Airtable formula) = (⭐️+✔️+🔥 모집 인원) × 인당 팔로워 쿠폰 으로 자동 계산.
+    const couponFields = couponEvent?.enabled
+      ? {
+          '쿠폰이벤트희망': true,
+          '할인 금액': couponEvent.discount || 0,
+          '쿠폰 적용 요일': couponEvent.couponApplyDays || '',
+          '인당 팔로워 쿠폰': couponEvent.couponPerCreator || 0,
+          '쿠폰 이벤트 약관 동의': '동의',
+          '방문 가능 기간(일수)': couponEvent.visitPeriodDays || 0,
+          '쿠폰 유효 기간(일수)': couponEvent.couponPeriodDays || 0,
+        }
+      : { '쿠폰이벤트희망': false }
 
     const payload = {
       records: [
@@ -100,6 +116,9 @@ export default async (req) => {
             '프리미엄 협찬 관련 동의 사항': '동의',
             '캠지기인스타그램': formData.instagramId || '',
             '비고': formData.additionalRequests || '',
+
+            // 팔로워 쿠폰 이벤트 (옵트인 시에만 키 추가)
+            ...couponFields,
           },
         },
       ],

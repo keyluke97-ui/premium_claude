@@ -25,7 +25,7 @@
  */
 
 export async function submitApplication(data) {
-  const { budget, selectedPlan, formData, crew, planTier } = data
+  const { budget, selectedPlan, formData, crew, planTier, couponEvent } = data
 
   // 로컬 개발 시 데모 모드 (API 엔드포인트가 없을 때)
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
@@ -35,6 +35,7 @@ export async function submitApplication(data) {
       planTier,
       crew,
       formData,
+      couponEvent,
     }, null, 2))
     await new Promise((r) => setTimeout(r, 1200))
     return { success: true, demo: true }
@@ -46,7 +47,7 @@ export async function submitApplication(data) {
     response = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ budget, selectedPlan, formData, crew, planTier }),
+      body: JSON.stringify({ budget, selectedPlan, formData, crew, planTier, couponEvent }),
     })
   } catch (fetchErr) {
     // fetch 자체 실패 = 네트워크 문제

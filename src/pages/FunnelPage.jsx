@@ -6,20 +6,29 @@ import { ChevronLeft, ArrowRight, Send, AlertCircle, MessageCircle } from 'lucid
 import IntroStep from '../components/steps/IntroStep'
 import BudgetStep from '../components/steps/BudgetStep'
 import PackageStep from '../components/steps/PackageStep'
+import CouponEventStep from '../components/steps/CouponEventStep'
 import InfoStep from '../components/steps/InfoStep'
 import AgreementStep from '../components/steps/AgreementStep'
 import CompleteStep from '../components/steps/CompleteStep'
 import { submitApplication } from '../utils/airtable'
 import PACKAGES from '../data/packages'
+import { CRITICAL_CONTRACT_INDICES } from '../data/agreements'
+import {
+  COUPON_EVENT_DEFAULTS,
+  COUPON_APPLY_DAYS,
+  VISIT_PERIOD,
+  COUPON_PERIOD,
+} from '../constants/config'
 
 /*
  * 퍼널 단계:
  * 0: 인트로
  * 1: 예산 선택
  * 2: 패키지 상세 선택
- * 3: 캠핑장 정보 입력
- * 4: 유의사항 및 계약 동의
- * 5: 완료
+ * 3: 팔로워 쿠폰 이벤트 (선택형, 기본 ON)
+ * 4: 캠핑장 정보 입력
+ * 5: 유의사항 및 계약 동의
+ * 6: 완료
  */
 
 const INITIAL_FORM = {
@@ -38,14 +47,18 @@ const INITIAL_FORM = {
 const INITIAL_AGREEMENTS = {
   contract: false,
   privacy: false,
+  coupon: false,
 }
 
 const MAX_RETRY = 3
 const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_fBxaQG/chat'
 
+// 마지막 입력 단계 번호 (약관). 완료 단계는 LAST_INPUT_STEP + 1
+const LAST_INPUT_STEP = 5
+
 // 프로그레스 바 컴포넌트
 function ProgressBar({ step }) {
-  const progress = (step / 4) * 100
+  const progress = (step / LAST_INPUT_STEP) * 100
   return (
     <div className="flex items-center gap-3 px-5 py-2">
       <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
@@ -58,7 +71,7 @@ function ProgressBar({ step }) {
         />
       </div>
       <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>
-        {step}/4
+        {step}/{LAST_INPUT_STEP}
       </span>
     </div>
   )
@@ -80,6 +93,43 @@ export default function FunnelPage() {
   const [submitError, setSubmitError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const submitLockRef = useRef(false)
+
+  // ── 팔로워 쿠폰 이벤트 (선택형, 기본 ON) ──
+  // 쿠폰 배포 크리에이터는 선택한 프리미엄 플랜 crew에서 파생(별도 모집 규모 없음).
+  const [couponEnabled, setCouponEnabled] = useState(COUPON_EVENT_DEFAULTS.enabled)
+  const [discount, setDiscount] = useState(COUPON_EVENT_DEFAULTS.discount)
+  const [couponApplyDays, setCouponApplyDays] = useState(COUPON_EVENT_DEFAULTS.couponApplyDays)
+  const [couponPerCreator, setCouponPerCreator] = useState(COUPON_EVENT_DEFAULTS.couponPerCreator)
+  const [visitPeriodDays, setVisitPeriodDays] = useState(VISIT_PERIOD.defaultDays)
+  const [couponExtraDays, setCouponExtraDays] = useState(0)
+
+  // 선택한 프리미엄 플랜의 crew (아이콘/파트너/라이징) — 쿠폰 배포 크리에이터 인원 파생용
+  const resolvedCrew =
+    selectedPlan?.id === 'custom'
+      ? customCrew
+      : selectedPlan?.crew || { icon: 0, partner: 0, rising: 0 }
+
+  // 방문/쿠폰 기간 일수 파생 — 구체적 dates는 매칭일 확정 후 운영자가 채움.
+  // (약관 제11조 "매칭 후 2개월"과 정합 — 신청일 기준 dates는 부정확하므로 일수만 전송)
+  const couponBufferDays = COUPON_PERIOD.contentCreationDays + COUPON_PERIOD.minimumBenefitDays
+  const couponPeriodDays = visitPeriodDays + couponBufferDays + couponExtraDays
+
+  const handleVisitPeriodChange = useCallback((delta) => {
+    setVisitPeriodDays((prev) => {
+      const next = prev + delta
+      if (next < VISIT_PERIOD.minimumDays || next > VISIT_PERIOD.maximumDays) return prev
+      return next
+    })
+  }, [])
+
+  const handleCouponExtraChange = useCallback((delta) => {
+    setCouponExtraDays((prev) => {
+      const next = prev + delta
+      const max = COUPON_PERIOD.adjustmentStep * COUPON_PERIOD.maximumExtensions
+      if (next < 0 || next > max) return prev
+      return next
+    })
+  }, [])
 
   // ── ?plan= 쿼리 수신: 외부에서 특정 플랜 지정 시 자동 프리셀렉트 (CHANGED: V4 프로토타입 챗봇·카드에서 딥링크 지원) ──
   useEffect(() => {
@@ -186,23 +236,22 @@ export default function FunnelPage() {
     setCriticalAcks((prev) => ({ ...prev, [clauseIndex]: !prev[clauseIndex] }))
   }, [])
 
-  // critical 조항 인덱스 (agreements.js 의 contract.clauses 기준)
-  const CRITICAL_INDICES = [1, 4, 6, 7, 8, 12]
-
-  const allCriticalAcked = CRITICAL_INDICES.every((i) => criticalAcks[i])
+  // critical 조항 인덱스는 agreements.js에서 동적 export (단일 출처)
+  const allCriticalAcked = CRITICAL_CONTRACT_INDICES.every((i) => criticalAcks[i])
 
   const handleToggleAll = useCallback(() => {
-    const allChecked = Object.values(agreements).every(Boolean) && allCriticalAcked
+    const allChecked =
+      agreements.contract && agreements.privacy && allCriticalAcked && (!couponEnabled || agreements.coupon)
     const newVal = !allChecked
-    setAgreements({ contract: newVal, privacy: newVal })
+    setAgreements({ contract: newVal, privacy: newVal, coupon: couponEnabled ? newVal : false })
     if (newVal) {
       const newAcks = {}
-      CRITICAL_INDICES.forEach((i) => { newAcks[i] = true })
+      CRITICAL_CONTRACT_INDICES.forEach((i) => { newAcks[i] = true })
       setCriticalAcks((prev) => ({ ...prev, ...newAcks }))
     } else {
       setCriticalAcks({})
     }
-  }, [agreements, allCriticalAcked])
+  }, [agreements, allCriticalAcked, couponEnabled])
 
   // ── Validation ──
   const validateForm = useCallback(() => {
@@ -230,7 +279,18 @@ export default function FunnelPage() {
     return Object.keys(validationErrors).length === 0
   }, [formData])
 
-  const allRequiredAgreed = agreements.contract && agreements.privacy && allCriticalAcked
+  const allRequiredAgreed =
+    agreements.contract && agreements.privacy && allCriticalAcked && (!couponEnabled || agreements.coupon)
+
+  // 쿠폰 이벤트 필수 입력 검증 (ON일 때만)
+  // crew 인원=0이면 "쿠폰 0장 발급" 무의미 상태이므로 검증 실패.
+  const resolvedCrewTotal =
+    (resolvedCrew?.icon || 0) + (resolvedCrew?.partner || 0) + (resolvedCrew?.rising || 0)
+  const validateCoupon = useCallback(() => {
+    if (!couponEnabled) return true
+    if (resolvedCrewTotal <= 0) return false
+    return Boolean(discount && couponApplyDays && couponPerCreator)
+  }, [couponEnabled, resolvedCrewTotal, discount, couponApplyDays, couponPerCreator])
 
   // ── Submit ──
   const handleSubmit = useCallback(async () => {
@@ -245,9 +305,22 @@ export default function FunnelPage() {
 
       const planTier = selectedPlan?.name || '직접 선택할게요'
 
-      await submitApplication({ budget, selectedPlan, formData, crew, planTier })
+      const couponEvent = couponEnabled
+        ? {
+            enabled: true,
+            discount,
+            couponApplyDays: COUPON_APPLY_DAYS.find((d) => d.id === couponApplyDays)?.airtableValue || '',
+            crew, // 쿠폰 배포 크리에이터 = 프리미엄 플랜 crew (등급별 인원 파생)
+            couponPerCreator,
+            // 기간은 일수만 전송 (구체적 dates는 매칭 후 운영자가 확정)
+            visitPeriodDays,
+            couponPeriodDays,
+          }
+        : { enabled: false }
+
+      await submitApplication({ budget, selectedPlan, formData, crew, planTier, couponEvent })
       setRetryCount(0)
-      goTo(5)
+      goTo(6)
     } catch (error) {
       console.error('Submit error:', error)
       const newCount = retryCount + 1
@@ -276,7 +349,9 @@ export default function FunnelPage() {
       setIsSubmitting(false)
       submitLockRef.current = false
     }
-  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo, retryCount])
+  }, [allRequiredAgreed, isSubmitting, budget, selectedPlan, formData, customCrew, goTo, retryCount,
+      couponEnabled, discount, couponApplyDays, couponPerCreator,
+      visitPeriodDays, couponPeriodDays])
 
   // ── Next 버튼 핸들러 ──
   const handleNext = useCallback(() => {
@@ -285,13 +360,15 @@ export default function FunnelPage() {
         const total = customCrew.icon + customCrew.partner + customCrew.rising
         if (total === 0) return
       }
-      goTo(3)
+      goTo(3) // 패키지 → 쿠폰 이벤트
     } else if (step === 3) {
-      if (validateForm()) goTo(4)
+      if (validateCoupon()) goTo(4) // 쿠폰 이벤트 → 정보입력
     } else if (step === 4) {
-      handleSubmit()
+      if (validateForm()) goTo(5) // 정보입력 → 약관
+    } else if (step === 5) {
+      handleSubmit() // 약관 → 제출
     }
-  }, [step, selectedPlan, customCrew, goTo, validateForm, handleSubmit])
+  }, [step, selectedPlan, customCrew, goTo, validateForm, validateCoupon, handleSubmit])
 
   // ── Button 상태 ──
   const getButtonConfig = () => {
@@ -304,13 +381,26 @@ export default function FunnelPage() {
           icon: <ArrowRight size={18} />,
         }
       }
-      case 3:
+      case 3: {
+        const noCrew = couponEnabled && resolvedCrewTotal <= 0
+        const noOptions = couponEnabled && !validateCoupon()
+        return {
+          text: noCrew
+            ? '플랜 인원을 1명 이상 선택해주세요'
+            : noOptions
+            ? '쿠폰 옵션을 선택해주세요'
+            : '다음',
+          disabled: noOptions,
+          icon: <ArrowRight size={18} />,
+        }
+      }
+      case 4:
         return {
           text: '다음',
           disabled: false,
           icon: <ArrowRight size={18} />,
         }
-      case 4:
+      case 5:
         return {
           text: isSubmitting ? '신청 중...' : '신청 완료하기',
           disabled: !allRequiredAgreed || isSubmitting,
@@ -322,8 +412,8 @@ export default function FunnelPage() {
   }
 
   const buttonConfig = getButtonConfig()
-  const showHeader = step >= 1 && step <= 4
-  const showBottomNavigation = step >= 2 && step <= 4
+  const showHeader = step >= 1 && step <= LAST_INPUT_STEP
+  const showBottomNavigation = step >= 2 && step <= LAST_INPUT_STEP
 
   // ── Animation Variants ──
   const slideVariants = {
@@ -397,6 +487,24 @@ export default function FunnelPage() {
               />
             )}
             {step === 3 && (
+              <CouponEventStep
+                enabled={couponEnabled}
+                onToggle={() => setCouponEnabled((prev) => !prev)}
+                discount={discount}
+                onDiscountChange={setDiscount}
+                couponApplyDays={couponApplyDays}
+                onCouponApplyDaysChange={setCouponApplyDays}
+                crew={resolvedCrew}
+                couponPerCreator={couponPerCreator}
+                onCouponPerCreatorChange={setCouponPerCreator}
+                visitPeriodDays={visitPeriodDays}
+                couponPeriodDays={couponPeriodDays}
+                couponExtraDays={couponExtraDays}
+                onVisitPeriodChange={handleVisitPeriodChange}
+                onCouponExtraChange={handleCouponExtraChange}
+              />
+            )}
+            {step === 4 && (
               <InfoStep
                 data={formData}
                 onChange={handleFormChange}
@@ -405,16 +513,17 @@ export default function FunnelPage() {
                 onPlanUpdate={setSelectedPlan}
               />
             )}
-            {step === 4 && (
+            {step === 5 && (
               <AgreementStep
                 agreements={agreements}
                 onToggle={handleAgreementToggle}
                 onToggleAll={handleToggleAll}
                 criticalAcks={criticalAcks}
                 onCriticalAck={handleCriticalAck}
+                couponEnabled={couponEnabled}
               />
             )}
-            {step === 5 && (
+            {step === 6 && (
               <CompleteStep
                 budget={budget}
                 plan={selectedPlan}
@@ -439,7 +548,7 @@ export default function FunnelPage() {
         >
           {/* 에러 배너 */}
           <AnimatePresence>
-            {submitError && step === 4 && (
+            {submitError && step === 5 && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
