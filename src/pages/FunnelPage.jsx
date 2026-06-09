@@ -529,6 +529,14 @@ export default function FunnelPage() {
                 plan={selectedPlan}
                 formData={formData}
                 crew={selectedPlan?.id === 'custom' ? customCrew : selectedPlan?.crew}
+                couponSummary={couponEnabled ? {
+                  enabled: true,
+                  discount,
+                  applyDaysLabel: COUPON_APPLY_DAYS.find((d) => d.id === couponApplyDays)?.label || '',
+                  perCreator: couponPerCreator,
+                  visitPeriodDays,
+                  couponPeriodDays,
+                } : null}
               />
             )}
           </motion.div>

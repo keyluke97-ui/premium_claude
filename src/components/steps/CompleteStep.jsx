@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, ArrowRight } from 'lucide-react'
+import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, ArrowRight, Ticket } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { formatDiscount } from '../../utils/coupons'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
 const DASHBOARD_LOGIN_PATH = '/dashboard/login'
@@ -65,7 +66,10 @@ function TimelineItem({ step, title, detail, highlight = false }) {
   )
 }
 
-export default function CompleteStep({ budget, plan, formData, crew }) {
+export default function CompleteStep({ budget, plan, formData, crew, couponSummary }) {
+  // 쿠폰 발급 규모 = 배포 크리에이터 수 × 인당 쿠폰 장수 (CouponEventStep 계산식과 동일)
+  const couponCrewTotal = (crew?.icon || 0) + (crew?.partner || 0) + (crew?.rising || 0)
+  const totalCoupons = couponCrewTotal * (couponSummary?.perCreator || 0)
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   // 완료 직후 1회 안내 팝업 — 대시보드 링크 저장 + 이메일 진행상황 안내 (캠지기가 못 보는 문제 해소)
@@ -242,6 +246,38 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
           {formData.region && <SummaryRow label="소재 권역" value={formData.region} />}
         </div>
       </motion.div>
+
+      {/* 팔로워 쿠폰 이벤트 요약 — 쿠폰 ON일 때만 */}
+      {couponSummary?.enabled && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.58 }}
+          className="w-full rounded-2xl p-5 text-left mt-4"
+          style={{
+            backgroundColor: 'rgba(1,223,130,0.05)',
+            border: '1px solid rgba(1,223,130,0.22)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Ticket size={14} style={{ color: '#01DF82' }} />
+            <span className="text-sm font-bold text-white">팔로워 쿠폰 이벤트</span>
+          </div>
+          <div className="flex flex-col gap-3">
+            <SummaryRow
+              label="발급 규모"
+              value={`크리에이터 ${couponCrewTotal}명 × ${couponSummary.perCreator}장 = 총 ${totalCoupons}장`}
+            />
+            <SummaryRow label="최대 추가 예약" value={`최대 ${totalCoupons}건`} />
+            <SummaryRow
+              label="할인 조건"
+              value={`건당 ${formatDiscount(couponSummary.discount)}${couponSummary.applyDaysLabel ? ` · ${couponSummary.applyDaysLabel}` : ''}`}
+            />
+            <SummaryRow label="쿠폰 유효 기간" value={`매칭일부터 ${couponSummary.couponPeriodDays}일`} />
+            <SummaryRow label="방문 가능 기간" value={`매칭일부터 ${couponSummary.visitPeriodDays}일`} />
+          </div>
+        </motion.div>
+      )}
 
       {/* 앞으로 일정 타임라인 */}
       <motion.div
