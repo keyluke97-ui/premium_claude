@@ -17,6 +17,7 @@ import {
 import StatusCard from './components/StatusCard'
 import RecruitmentProgress from './components/RecruitmentProgress'
 import CreatorList from './components/CreatorList'
+import CouponEventCard from './components/CouponEventCard'
 import KakaoGuideSheet from './components/KakaoGuideSheet'
 import RefundFlowModal from './components/RefundFlowModal'
 import PartnerStatusCard from './components/PartnerStatusCard'
@@ -280,7 +281,8 @@ function DashboardPage() {
   const [showRefundModal, setShowRefundModal] = useState(false)
 
   // CHANGED: sessionStorage에서 사용 가능한 타입 목록 1회만 파싱 (매 렌더 JSON.parse 방지)
-  const [availableTypes] = useState(() => getAvailableTypes())
+  // CHANGED: 파트너 탭 UI 숨김 — 백엔드/파트너 코드는 보존, 노출만 차단 (복원 시 .filter만 제거)
+  const [availableTypes] = useState(() => getAvailableTypes().filter((t) => t !== 'partner'))
   // CHANGED: 복수 프리미엄 recordId 배열 (단일 신청이면 null)
   const [premiumRecordIds] = useState(() => getPremiumRecordIds())
 
@@ -498,6 +500,7 @@ function PremiumDashboardContent({ dashboardData, accommodationName, onModify, o
     creators,
     canRefund,
     isFullyRecruited,
+    couponEvent,
   } = dashboardData
 
   const paymentConfirmed = application?.paymentConfirmed === true
@@ -530,6 +533,7 @@ function PremiumDashboardContent({ dashboardData, accommodationName, onModify, o
           totalRequested={totalRequested}
           totalAssigned={totalAssigned}
         />
+        <CouponEventCard couponEvent={couponEvent} />
         <CreatorList creators={creators} />
       </div>
 
