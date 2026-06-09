@@ -99,4 +99,44 @@ const AGREEMENTS = [
   },
 ]
 
+// 팔로워 쿠폰 이벤트 약관 (쿠폰 이벤트 ON일 때만 AgreementStep에 추가 노출)
+// 단순 필수 동의 항목 — critical 개별 동의 없음(계약 약관의 CRITICAL_INDICES와 분리).
+export const COUPON_AGREEMENT = {
+  id: 'coupon',
+  title: '팔로워 쿠폰 이벤트 약관',
+  required: true,
+  summary: '팔로워 쿠폰 이벤트를 함께 진행하는 경우 적용됩니다.',
+  clauses: [
+    {
+      num: '제1조',
+      title: '쿠폰 할인 부담',
+      text: '캠지기는 팔로워 쿠폰이 사용된 예약 1건당 신청 시 설정한 할인 금액을 부담합니다. 예약 박수와 무관하게 쿠폰 1장은 1건의 예약에 1회 적용되며, 선택한 쿠폰 적용 요일 범위 내 평일·주말·공휴일 동일 금액 할인이 적용됩니다. 쿠폰이 사용되지 않은 경우 비용은 발생하지 않습니다.',
+    },
+    {
+      num: '제2조',
+      title: '쿠폰 발급·유효 기간',
+      text: '쿠폰은 매칭된 크리에이터 콘텐츠를 통해 팔로워에게 발급되며, 신청 시 설정한 쿠폰 유효 기간 내에만 사용할 수 있습니다.',
+    },
+    {
+      num: '제3조',
+      title: '캠페인 마감·변경',
+      text: '쿠폰 이벤트는 모집 인원 충족 시 자동 마감되며, 진행 중 임의 조건 변경은 불가합니다. 변경이 필요한 경우 회사에 요청해야 합니다.',
+    },
+    {
+      num: '제4조',
+      title: '노쇼 시 쿠폰 보류',
+      text: '매칭된 크리에이터가 방문하지 않는 경우 대체 매칭이 진행되며, 그 기간 동안 쿠폰은 자동 보류되어 캠지기 부담이 발생하지 않습니다.',
+    },
+  ],
+}
+
+// contract.clauses 중 critical=true인 항목의 인덱스 — 단일 출처
+// FunnelPage(검증)와 AgreementStep(UI)가 모두 import해서 사용.
+const CONTRACT_AGREEMENT = AGREEMENTS.find((a) => a.id === 'contract')
+export const CRITICAL_CONTRACT_INDICES = CONTRACT_AGREEMENT
+  ? CONTRACT_AGREEMENT.clauses
+      .map((c, i) => (c.critical ? i : -1))
+      .filter((i) => i >= 0)
+  : []
+
 export default AGREEMENTS

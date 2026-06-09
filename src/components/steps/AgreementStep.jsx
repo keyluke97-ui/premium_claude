@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, ChevronDown, ChevronUp, AlertTriangle, ShieldAlert } from 'lucide-react'
-import AGREEMENTS from '../../data/agreements'
+import AGREEMENTS, { COUPON_AGREEMENT, CRITICAL_CONTRACT_INDICES } from '../../data/agreements'
 
 function Checkbox({ checked, onChange, size = 22 }) {
   return (
@@ -57,20 +57,14 @@ function CriticalAcknowledge({ checked, onChange }) {
   )
 }
 
-export default function AgreementStep({ agreements, onToggle, onToggleAll, criticalAcks, onCriticalAck }) {
+export default function AgreementStep({ agreements, onToggle, onToggleAll, criticalAcks, onCriticalAck, couponEnabled }) {
   const [expandedId, setExpandedId] = useState('contract') // 계약 자동 펼침
-  const allChecked = Object.values(agreements).every(Boolean)
+  // 쿠폰 이벤트 ON일 때만 쿠폰 약관 추가 노출
+  const displayedAgreements = couponEnabled ? [...AGREEMENTS, COUPON_AGREEMENT] : AGREEMENTS
+  const allChecked = displayedAgreements.every((a) => agreements[a.id])
 
-  // critical 조항 인덱스 추출
-  const criticalIndices = useMemo(() => {
-    const contract = AGREEMENTS.find((a) => a.id === 'contract')
-    if (!contract) return []
-    return contract.clauses
-      .map((c, i) => (c.critical ? i : -1))
-      .filter((i) => i >= 0)
-  }, [])
-
-  const allCriticalAcked = criticalIndices.every((i) => criticalAcks?.[i])
+  // critical 조항 인덱스는 agreements.js에서 import (FunnelPage와 단일 출처 공유)
+  const allCriticalAcked = CRITICAL_CONTRACT_INDICES.every((i) => criticalAcks?.[i])
 
   return (
     <motion.div
@@ -128,7 +122,7 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
 
       {/* 개별 약관 */}
       <div className="flex flex-col gap-2">
-        {AGREEMENTS.map((agreement, i) => {
+        {displayedAgreements.map((agreement, i) => {
           const isChecked = agreements[agreement.id]
           const isExpanded = expandedId === agreement.id
           const hasCritical = agreement.clauses?.some((c) => c.critical)

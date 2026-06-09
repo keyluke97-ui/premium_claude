@@ -262,6 +262,28 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
+      {/* 할인 가능 plan이 선택됐는데 사업자번호 미조회 시 — ?plan= 딥링크 진입에서도 할인 우회 방지 */}
+      <AnimatePresence>
+        {!bizChecked && selected?.discountEligible && !isDirectCustom && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="mb-3 rounded-xl px-4 py-3 flex items-start gap-2.5"
+            style={{
+              backgroundColor: 'rgba(255,168,0,0.08)',
+              border: '1px solid rgba(255,168,0,0.3)',
+            }}
+          >
+            <BadgePercent size={16} style={{ color: '#FFA800', flexShrink: 0, marginTop: 1 }} />
+            <div className="text-xs" style={{ color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
+              선택한 플랜이 <strong style={{ color: '#FFA800' }}>첫 신청 할인 대상</strong>이에요.
+              아래에서 사업자 번호를 조회하면 자동으로 할인가가 반영됩니다.
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 사업자번호 입력 + 첫 신청 조회 */}
       <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(1,223,130,0.04)', border: '1px solid rgba(1,223,130,0.15)' }}>
         <div className="flex items-center gap-2 mb-1">
