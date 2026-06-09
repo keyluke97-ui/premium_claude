@@ -1,6 +1,6 @@
-import { motion } from 'framer-motion'
-import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock } from 'lucide-react'
-import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, ArrowRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
 const DASHBOARD_LOGIN_PATH = '/dashboard/login'
@@ -68,6 +68,12 @@ function TimelineItem({ step, title, detail, highlight = false }) {
 export default function CompleteStep({ budget, plan, formData, crew }) {
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  // 완료 직후 1회 안내 팝업 — 대시보드 링크 저장 + 이메일 진행상황 안내 (캠지기가 못 보는 문제 해소)
+  const [showWelcome, setShowWelcome] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShowWelcome(true), 600) // 성공 애니메이션 먼저 보여준 뒤 노출
+    return () => clearTimeout(t)
+  }, [])
   const accountNumber = '225-910068-71204'
   const dashboardUrl =
     typeof window !== 'undefined'
@@ -174,13 +180,33 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
           </div>
           {computedPrice > 0 && (
             <div
-              className="mt-1 p-3 rounded-lg flex justify-between items-center"
+              className="mt-1 p-3 rounded-lg"
               style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
             >
-              <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
-              <span className="text-base font-bold" style={{ color: '#01DF82' }}>
-                {formatPrice(computedPrice)}
-              </span>
+              <div className="flex justify-between items-center">
+                <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
+                <div className="flex items-center gap-2">
+                  {/* 첫신청 할인 시 정가 취소선 → 할인가 */}
+                  {plan?.isDiscounted && plan?.originalPrice > 0 && (
+                    <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      {formatPrice(Math.round(plan.originalPrice * 1.1))}
+                    </span>
+                  )}
+                  <span className="text-base font-bold" style={{ color: '#01DF82' }}>
+                    {formatPrice(computedPrice)}
+                  </span>
+                </div>
+              </div>
+              {plan?.isDiscounted && (
+                <div className="mt-1.5 text-right">
+                  <span
+                    className="inline-block px-1.5 py-0.5 rounded text-xs font-bold"
+                    style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}
+                  >
+                    🎉 첫신청 할인 적용
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -323,6 +349,117 @@ export default function CompleteStep({ budget, plan, formData, crew }) {
       >
         문의사항이 있으시면 카카오톡 채널로 연락주세요
       </motion.p>
+
+      {/* 완료 직후 안내 팝업 — 대시보드 저장 + 이메일 진행상황 (1회 노출) */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', padding: '0 0 env(safe-area-inset-bottom, 0px)' }}
+            onClick={() => setShowWelcome(false)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full rounded-t-3xl p-6 text-left"
+              style={{ maxWidth: 448, backgroundColor: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2 pr-2">
+                  <span
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: 'rgba(1,223,130,0.15)' }}
+                  >
+                    <Check size={16} color="#01DF82" strokeWidth={3} />
+                  </span>
+                  <span className="text-base font-bold text-white leading-tight">
+                    신청 완료! 두 가지만 확인해주세요
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowWelcome(false)}
+                  className="p-1 flex-shrink-0"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 1) 이메일 진행상황 안내 */}
+              <div className="flex items-start gap-3 p-3.5 rounded-xl mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                <Mail size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white mb-0.5">진행 상황은 이메일로 안내돼요</div>
+                  <div className="text-xs" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                    입금 확인·매칭·콘텐츠 업로드 등 주요 단계가{' '}
+                    {formData?.email && (
+                      <span style={{ color: '#01DF82', wordBreak: 'break-all' }}>{formData.email}</span>
+                    )}{' '}
+                    (으)로 발송됩니다.
+                  </div>
+                </div>
+              </div>
+
+              {/* 2) 대시보드 저장 안내 */}
+              <div
+                className="flex items-start gap-3 p-3.5 rounded-xl mb-4"
+                style={{ backgroundColor: 'rgba(1,223,130,0.06)', border: '1px solid rgba(1,223,130,0.2)' }}
+              >
+                <LayoutDashboard size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white mb-0.5">대시보드에서 실시간 확인하세요</div>
+                  <div className="text-xs mb-2.5" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                    매칭된 크리에이터·체크인일·콘텐츠를 한 곳에서 볼 수 있어요. 링크를 저장해두세요.
+                  </div>
+                  <div
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-lg"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+                  >
+                    <span className="text-xs truncate" style={{ color: '#01DF82', fontFamily: 'ui-monospace, monospace' }}>
+                      {dashboardUrl}
+                    </span>
+                    <button
+                      onClick={handleLinkCopy}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                      style={{
+                        backgroundColor: linkCopied ? 'rgba(1,223,130,0.15)' : 'rgba(255,255,255,0.08)',
+                        color: linkCopied ? '#01DF82' : 'rgba(255,255,255,0.7)',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Copy size={12} />
+                      {linkCopied ? '복사됨!' : '복사'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <a
+                href={DASHBOARD_LOGIN_PATH}
+                className="w-full flex items-center justify-center gap-1.5 py-3.5 rounded-xl mb-2 font-bold text-sm"
+                style={{ backgroundColor: '#01DF82', color: '#000', textDecoration: 'none' }}
+              >
+                지금 대시보드 열어보기
+                <ArrowRight size={16} />
+              </a>
+              <button
+                onClick={() => setShowWelcome(false)}
+                className="w-full py-3 rounded-xl text-sm font-semibold"
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+              >
+                확인했어요
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

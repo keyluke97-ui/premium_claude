@@ -189,16 +189,19 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
 
                       {/* 조항 목록 */}
                       <div className="flex flex-col gap-2.5">
-                        {agreement.clauses.map((clause, j) => (
+                        {agreement.clauses.map((clause, j) => {
+                          // critical = 개별 동의 필요 / emphasis = 시각 강조만 (개별 동의 X). 둘 다 동일 색으로 강조.
+                          const isEmphasized = clause.critical || clause.emphasis
+                          return (
                           <div key={j}>
                             {/* 조항 행 */}
                             <div
                               className="flex gap-2 p-2 rounded-lg"
                               style={{
-                                backgroundColor: clause.critical
+                                backgroundColor: isEmphasized
                                   ? 'rgba(255,168,0,0.05)'
                                   : 'transparent',
-                                borderLeft: clause.critical
+                                borderLeft: isEmphasized
                                   ? '3px solid #FFA800'
                                   : '3px solid transparent',
                               }}
@@ -206,11 +209,11 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                               <span
                                 className="text-xs font-bold flex-shrink-0 mt-0.5"
                                 style={{
-                                  color: clause.critical ? '#FFA800' : '#01DF82',
+                                  color: isEmphasized ? '#FFA800' : '#01DF82',
                                   minWidth: 42,
                                 }}
                               >
-                                {clause.critical && (
+                                {isEmphasized && (
                                   <AlertTriangle
                                     size={10}
                                     style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }}
@@ -222,7 +225,7 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                                 {clause.title && (
                                   <span
                                     className="text-xs font-semibold"
-                                    style={{ color: clause.critical ? '#FFA800' : '#fff' }}
+                                    style={{ color: isEmphasized ? '#FFA800' : '#fff' }}
                                   >
                                     {clause.title}{' '}
                                   </span>
@@ -230,6 +233,19 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                                 <span className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
                                   {clause.text}
                                 </span>
+                                {/* 들여쓰기 세부 항목 */}
+                                {clause.points && (
+                                  <ul className="mt-2 flex flex-col gap-1.5 pl-1">
+                                    {clause.points.map((point, k) => (
+                                      <li key={k} className="flex gap-2">
+                                        <span className="text-xs flex-shrink-0" style={{ color: '#FFA800' }}>–</span>
+                                        <span className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                                          {point}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
                               </div>
                             </div>
 
@@ -262,7 +278,8 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                               />
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
 
                       {/* 계약서 갈음 강조 */}
@@ -279,6 +296,24 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                           </p>
                           <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
                             상기 내용에 동의 없이는 프리미엄 협찬 진행이 불가합니다.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 쿠폰 약관 핵심 강조 — 비용 안심 포인트 */}
+                      {agreement.id === 'coupon' && (
+                        <div
+                          className="mt-4 p-3 rounded-xl text-center"
+                          style={{
+                            backgroundColor: 'rgba(1,223,130,0.07)',
+                            border: '1px solid rgba(1,223,130,0.25)',
+                          }}
+                        >
+                          <p className="text-xs font-bold" style={{ color: '#01DF82' }}>
+                            쿠폰은 실제 사용된 예약에만 비용이 발생합니다.
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            발급된 쿠폰이 사용되지 않으면 추가 비용이 없습니다.
                           </p>
                         </div>
                       )}
