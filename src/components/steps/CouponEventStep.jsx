@@ -220,7 +220,7 @@ export default function CouponEventStep({
               <TrendingUp size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
               <div className="text-xs" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
                 협찬 콘텐츠가 <strong style={{ color: '#01DF82' }}>관심</strong>을 모으면, 팔로워 쿠폰이 <strong style={{ color: '#01DF82' }}>방문할 계기</strong>를 더해줘요.
-                할인은 <strong style={{ color: '#fff' }}>예약이 실제로 확정될 때만</strong> 적용되니, 미리 나가는 돈은 없어요.
+                할인은 <strong style={{ color: '#fff' }}>예약이 확정될 때만</strong> 적용돼요.
               </div>
             </div>
 
@@ -360,7 +360,7 @@ export default function CouponEventStep({
                   콘텐츠를 본 팔로워 {totalCoupons}명에게 할인 혜택이 전달돼요
                 </div>
                 <div className="text-xs mt-2.5 pt-2.5" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                  할인은 <strong style={{ color: '#01DF82', fontWeight: 700 }}>예약이 확정된 건에만</strong> 건당 {formatDiscount(discount)} 적용돼요
+                  예약이 확정되면 건당 <strong style={{ color: '#01DF82', fontWeight: 700 }}>{formatDiscount(discount)} 할인 이벤트</strong>가 적용돼요
                 </div>
               </div>
             )}

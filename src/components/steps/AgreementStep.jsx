@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, ChevronDown, ChevronUp, AlertTriangle, ShieldAlert } from 'lucide-react'
 import AGREEMENTS, { COUPON_AGREEMENT, CRITICAL_CONTRACT_INDICES } from '../../data/agreements'
@@ -67,6 +67,34 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
   // critical 조항 인덱스는 agreements.js에서 import (FunnelPage와 단일 출처 공유)
   const allCriticalAcked = CRITICAL_CONTRACT_INDICES.every((i) => criticalAcks?.[i])
 
+  // 중요 조항 ack 요소 refs (clause 인덱스별) — 다음 미확인 조항으로 스크롤 유도
+  const criticalRefs = useRef({})
+  const scrollToCritical = (i) => {
+    if (i == null) return
+    requestAnimationFrame(() => {
+      criticalRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  // 전체동의 탭: 문서 동의는 토글하되 Option B로 중요조항은 자동 ack되지 않음(약관규제법 §3③④).
+  // 켜는 방향이면 계약을 펼치고 첫 미확인 중요조항으로 스크롤 → "왜 안 넘어가지?" 혼란 해소.
+  const handleToggleAllClick = () => {
+    const requiredKeys = ['contract', 'privacy', 'thirdparty', ...(couponEnabled ? ['coupon'] : [])]
+    const willTurnOn = !requiredKeys.every((k) => agreements[k])
+    onToggleAll()
+    if (willTurnOn && !allCriticalAcked) {
+      setExpandedId('contract')
+      scrollToCritical(CRITICAL_CONTRACT_INDICES.find((i) => !criticalAcks?.[i]))
+    }
+  }
+
+  // 중요조항 개별 동의: 새로 동의하면 다음 미확인 조항으로 스크롤(연속 확인 유도).
+  const handleAck = (i) => {
+    const wasAcked = !!criticalAcks?.[i]
+    onCriticalAck(i)
+    if (!wasAcked) scrollToCritical(CRITICAL_CONTRACT_INDICES.find((j) => j !== i && !criticalAcks?.[j]))
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -106,19 +134,26 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
         </motion.div>
       )}
 
-      {/* 전체 동의 버튼 */}
+      {/* 전체 동의 버튼 — Option B: 중요조항은 자동 체크 안 됨. 탭하면 첫 미확인 조항으로 스크롤 */}
       <motion.button
         whileTap={{ scale: 0.98 }}
-        onClick={onToggleAll}
-        className="w-full flex items-center gap-3 p-4 rounded-2xl mb-4 transition-all duration-200"
+        onClick={handleToggleAllClick}
+        className="w-full flex items-center gap-3 p-4 rounded-2xl mb-4 transition-all duration-200 text-left"
         style={{
           border: `2px solid ${allRequiredChecked && allCriticalAcked ? '#01DF82' : 'rgba(255,255,255,0.12)'}`,
           backgroundColor: allRequiredChecked && allCriticalAcked ? 'rgba(1,223,130,0.08)' : 'rgba(255,255,255,0.03)',
           cursor: 'pointer',
         }}
       >
-        <Checkbox checked={allRequiredChecked && allCriticalAcked} onChange={onToggleAll} size={26} />
-        <span className="text-base font-bold text-white">전체 동의하기</span>
+        <Checkbox checked={allRequiredChecked && allCriticalAcked} onChange={handleToggleAllClick} size={26} />
+        <div className="flex flex-col">
+          <span className="text-base font-bold text-white">약관에 전체 동의합니다</span>
+          {!allCriticalAcked && (
+            <span className="text-xs mt-0.5" style={{ color: '#FFA800' }}>
+              중요 조항은 직접 확인이 필요해요 — 탭하면 해당 위치로 이동합니다
+            </span>
+          )}
+        </div>
       </motion.button>
 
       {/* 개별 약관 */}
@@ -273,10 +308,12 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
 
                             {/* critical 조항 개별 동의 */}
                             {clause.critical && (
-                              <CriticalAcknowledge
-                                checked={!!criticalAcks?.[j]}
-                                onChange={() => onCriticalAck(j)}
-                              />
+                              <div ref={(el) => { if (el) criticalRefs.current[j] = el }}>
+                                <CriticalAcknowledge
+                                  checked={!!criticalAcks?.[j]}
+                                  onChange={() => handleAck(j)}
+                                />
+                              </div>
                             )}
                           </div>
                           )

@@ -176,6 +176,12 @@ export default function FunnelPage() {
     }
   }, [step])
 
+  // 단계 전환 시 스크롤 최상단으로 — 이전 단계 스크롤 위치가 남아 새 단계가 중간부터 보이는 문제 해소
+  // (예: 패키지에서 내려보다 정보입력으로 넘어가면 사업자번호 중간부터 보임). 흐름·state는 불변, 스크롤만.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [step])
+
   // ── Navigation ──
   const goTo = useCallback(
     (newStep) => {

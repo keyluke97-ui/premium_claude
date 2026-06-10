@@ -268,7 +268,6 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
               label="발급 규모"
               value={`크리에이터 ${couponCrewTotal}명 × ${couponSummary.perCreator}장 = 총 ${totalCoupons}장`}
             />
-            <SummaryRow label="최대 추가 예약" value={`최대 ${totalCoupons}건`} />
             <SummaryRow
               label="할인 조건"
               value={`건당 ${formatDiscount(couponSummary.discount)}${couponSummary.applyDaysLabel ? ` · ${couponSummary.applyDaysLabel}` : ''}`}
@@ -478,7 +477,11 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
               </div>
 
               <button
-                onClick={() => setShowWelcome(false)}
+                onClick={() => {
+                  setShowWelcome(false)
+                  // 팝업 닫으면 최상단(입금 안내)으로 이동 — 입금이 다음 행동이므로 바로 보이게
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
                 className="w-full py-3.5 rounded-xl text-sm font-bold"
                 style={{ backgroundColor: '#01DF82', color: '#000', border: 'none', cursor: 'pointer' }}
               >
