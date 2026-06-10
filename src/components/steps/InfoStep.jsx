@@ -74,7 +74,7 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
     }
   }, [])
 
-  // InfoStep 단계에서 사업자번호 blur 시 첫 신청 여부 조회 → 할인 사후 적용
+  // InfoStep 단계에서 사업자번호 blur 시 재신청 여부 조회 → 할인 사후 적용
   const handleBizBlur = async () => {
     if (alreadyCheckedInPackageStep) return
     const biz = data.businessNumber || ''
@@ -83,8 +83,8 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
     const result = await checkFirstTime(biz)
     if (result.error) return
     sessionStorage.setItem('bizNumber', biz)
-    sessionStorage.setItem('isFirstTime', String(result.isFirstTime))
-    if (result.isFirstTime) {
+    sessionStorage.setItem('isReturning', String(result.isReturning))
+    if (result.isReturning) {
       setBizBannerVisible(true)
       if (plan && plan.id !== 'custom' && plan.discountEligible) {
         onPlanUpdate?.(computeDiscountedPlan(plan))
@@ -187,7 +187,7 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                 >
                   <Sparkles size={14} style={{ color: BRAND_GREEN, flexShrink: 0, marginTop: 2 }} />
                   <span style={{ color: BRAND_GREEN, fontWeight: 600, lineHeight: 1.5 }}>
-                    첫 신청 할인 대상이에요! 선택한 플랜에 할인가가 자동 반영됐어요.
+                    재신청 할인 대상이에요! 선택한 플랜에 할인가가 자동 반영됐어요.
                   </span>
                 </div>
               )}

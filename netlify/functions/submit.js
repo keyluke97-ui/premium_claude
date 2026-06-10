@@ -49,7 +49,7 @@ export default async (req) => {
     const body = await req.json()
     const { budget, formData, crew, planTier, selectedPlan, couponEvent } = body
 
-    // 단가 (첫 신청 할인 적용 여부에 따라 분기)
+    // 단가 (재신청 할인 적용 여부에 따라 분기)
     const isDiscounted = selectedPlan?.isDiscounted === true
     const ICON_PRICE = isDiscounted ? 250000 : 300000
     const PARTNER_PRICE = isDiscounted ? 120000 : 150000
@@ -123,8 +123,8 @@ export default async (req) => {
             // 숙소 특장점
             '숙소의 특장점': formData.promotion || '',
 
-            // 첫 신청 할인
-            '첫신청할인': selectedPlan?.isDiscounted || false,
+            // 재신청 할인 적용 여부 (Airtable 필드명: '이벤트 할인')
+            '이벤트 할인': selectedPlan?.isDiscounted || false,
             '할인전금액': selectedPlan?.originalPrice || 0,
 
             // 동의 & 비고
