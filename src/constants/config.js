@@ -3,7 +3,7 @@
 // 신원/사이트종류/권역은 프리미엄 InfoStep이 이미 수집하므로 여기엔 포함하지 않음.
 
 // 방문 가능 기간 (일 단위)
-// defaultDays 60 = 프리미엄 협찬 약관 제11조 '매칭 후 2개월 이내 방문'과 정합.
+// defaultDays 60 = 프리미엄 협찬 약관 제11조 '신청 후 2개월 이내 방문'과 정합.
 export const VISIT_PERIOD = {
   defaultDays: 60,
   minimumDays: 30,

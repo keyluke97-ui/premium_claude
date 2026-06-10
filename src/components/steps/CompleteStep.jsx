@@ -299,7 +299,7 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
           <TimelineItem step="2" title="크리에이터 모집 & 매칭" detail="공고 후 크리에이터 신청 순" />
           <TimelineItem
             step="3"
-            title="매칭 후 2개월 이내 방문"
+            title="신청 후 2개월 이내 방문"
             detail="크리에이터가 직접 방문해 1박 체험"
             highlight
           />
