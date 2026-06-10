@@ -1,5 +1,5 @@
 // CouponEventStep.jsx - 팔로워 쿠폰 이벤트 (프리미엄 퍼널 선택형 스텝)
-// 기본 ON(옵트아웃) + 추천 프리셋 사전선택. "실 예약 전환" 프레이밍으로 옵트인 유도.
+// 기본 ON(옵트아웃) + 추천 프리셋 사전선택. "방문 계기 + 성과 연동" 프레이밍으로 옵트인 유도(예약 건수 예측·부담 표현 지양).
 // 쿠폰 배포 크리에이터는 별도 모집하지 않고, 선택한 프리미엄 플랜의 crew(아이콘/파트너/라이징)에서 파생함.
 // 기간은 일수(N일)로 표기. 신청 시 신청일 기준으로 날짜가 환산되어 저장되며, 운영자가 매칭 후 보정 가능.
 import { useState } from 'react'
@@ -138,7 +138,6 @@ export default function CouponEventStep({
     .map((k) => `${TIER_LABELS[k].emoji} ${TIER_LABELS[k].label} ${crew[k]}`)
     .join(' · ')
   const totalCoupons = crewTotal * (couponPerCreator || 0)
-  const maxBurden = totalCoupons * (discount || 0)
 
   return (
     <motion.div
@@ -148,12 +147,12 @@ export default function CouponEventStep({
       className="px-5 pt-8 pb-6"
     >
       <h2 className="text-2xl font-extrabold text-white leading-tight mb-2">
-        팔로워 쿠폰으로
+        콘텐츠를 본 팔로워를
         <br />
-        실 예약까지 이어보세요
+        캠핑장으로 초대해요
       </h2>
       <p className="text-sm mb-5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-        크리에이터 콘텐츠를 본 팔로워에게 할인 쿠폰을 뿌려 실제 예약 전환을 만드는 옵션이에요
+        크리에이터 콘텐츠를 본 팔로워에게 할인 쿠폰을 건네, 한 번 방문해볼 계기를 만들어주는 옵션이에요
       </p>
 
       {/* ON/OFF 토글 카드 */}
@@ -183,7 +182,7 @@ export default function CouponEventStep({
             </span>
           </div>
           <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {enabled ? '함께 진행해요 · 미사용 시 비용 없음' : '꺼짐 · 협찬만 진행돼요'}
+            {enabled ? '함께 진행해요 · 예약이 생길 때만 할인 적용' : '꺼짐 · 협찬만 진행돼요'}
           </div>
         </div>
         {/* 스위치 */}
@@ -220,8 +219,8 @@ export default function CouponEventStep({
             >
               <TrendingUp size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
               <div className="text-xs" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
-                협찬 콘텐츠는 <strong style={{ color: '#01DF82' }}>인지</strong>를, 팔로워 쿠폰은 <strong style={{ color: '#01DF82' }}>실 예약</strong>을 만듭니다.
-                쿠폰은 <strong style={{ color: '#fff' }}>사용된 예약 건당</strong>에만 비용이 발생하고, 미사용 시 부담이 없어요.
+                협찬 콘텐츠가 <strong style={{ color: '#01DF82' }}>관심</strong>을 모으면, 팔로워 쿠폰이 <strong style={{ color: '#01DF82' }}>방문할 계기</strong>를 더해줘요.
+                할인은 <strong style={{ color: '#fff' }}>예약이 실제로 확정될 때만</strong> 적용되니, 미리 나가는 돈은 없어요.
               </div>
             </div>
 
@@ -345,28 +344,23 @@ export default function CouponEventStep({
               ))}
             </div>
 
-            {/* 추가 예약 유치 프레이밍 */}
+            {/* 발급 규모(닿는 범위) 프레이밍 */}
             {crewTotal > 0 && couponPerCreator && discount && (
               <div
                 className="rounded-xl px-4 py-3.5 mb-6"
                 style={{ backgroundColor: 'rgba(1,223,130,0.08)', border: '1px solid rgba(1,223,130,0.25)' }}
               >
                 <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>📢 팔로워 쿠폰 발급</span>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>🎟️ 팔로워에게 닿는 할인</span>
                   <span className="text-sm font-bold" style={{ color: '#01DF82' }}>
                     {crewTotal}명 × {couponPerCreator}장 = {totalCoupons}장
                   </span>
                 </div>
-                <div className="flex justify-between items-center mb-2.5">
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>🎯 최대 추가 예약 유치</span>
-                  <span className="text-sm font-bold" style={{ color: '#01DF82' }}>최대 {totalCoupons}건</span>
+                <div className="text-xs" style={{ color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                  콘텐츠를 본 팔로워 {totalCoupons}명에게 할인 혜택이 전달돼요
                 </div>
-                <div className="text-xs pt-2.5" style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                  💰 쿠폰 사용 시 예약 건당 {formatDiscount(discount)} 할인 ·{' '}
-                  <strong style={{ color: '#01DF82', fontWeight: 700 }}>미사용 시 비용 없음</strong>
-                </div>
-                <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)', lineHeight: 1.4 }}>
-                  (전 쿠폰 소진 시 최대 {maxBurden.toLocaleString()}원 할인 부담)
+                <div className="text-xs mt-2.5 pt-2.5" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  할인은 <strong style={{ color: '#01DF82', fontWeight: 700 }}>예약이 확정된 건에만</strong> 건당 {formatDiscount(discount)} 적용돼요
                 </div>
               </div>
             )}
@@ -436,7 +430,7 @@ export default function CouponEventStep({
             <Sparkles size={18} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0, marginTop: 1 }} />
             <div className="text-xs" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
               쿠폰 이벤트 없이 프리미엄 협찬만 진행합니다. 위 스위치를 켜면 팔로워에게 할인 쿠폰을 제공해
-              <strong style={{ color: '#01DF82' }}> 실제 예약 전환</strong>까지 노려볼 수 있어요. (미사용 시 추가 비용 없음)
+              <strong style={{ color: '#01DF82' }}> 방문할 계기</strong>를 더할 수 있어요. (예약이 확정될 때만 할인 적용)
             </div>
           </motion.div>
         )}

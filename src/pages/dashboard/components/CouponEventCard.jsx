@@ -132,13 +132,13 @@ export default function CouponEventCard({ couponEvent }) {
         </div>
       </div>
 
-      {/* 기회 리프레이밍 — 비용이 아닌 공실 채우기 기회로 표현 */}
+      {/* 기회 리프레이밍 — 예약 건수 예측·비용이 아닌, 닿는 범위 + 방문 계기로 표현 */}
       <div className="mt-4 rounded-xl px-4 py-3" style={{ backgroundColor: `${BRAND_GREEN}10` }}>
         <p className="text-sm font-semibold" style={{ color: BRAND_GREEN }}>
-          팔로워 신규 예약 유치 — 최대 {totalFollowerCoupon}건
+          🎟️ 팔로워 {totalFollowerCoupon}명에게 닿는 할인
         </p>
         <p className="text-xs mt-1" style={{ color: TEXT_MUTED }}>
-          비어있을 수 있던 사이트를 팔로워 예약으로 채웁니다.
+          비어있을 수 있던 사이트를 채울 방문 계기를 더합니다.
         </p>
       </div>
 
