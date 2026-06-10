@@ -46,7 +46,9 @@ const INITIAL_FORM = {
 
 const INITIAL_AGREEMENTS = {
   contract: false,
-  privacy: false,
+  privacy: false,      // 개인정보 수집·이용 (필수)
+  thirdparty: false,   // 개인정보 제3자 제공 (필수) — 개인정보보호법 §17·§22
+  instaConsent: false, // 인스타그램 계정 수집·제공 (선택) — 제출 필수 아님
   coupon: false,
 }
 
@@ -240,18 +242,21 @@ export default function FunnelPage() {
   const allCriticalAcked = CRITICAL_CONTRACT_INDICES.every((i) => criticalAcks[i])
 
   const handleToggleAll = useCallback(() => {
-    const allChecked =
-      agreements.contract && agreements.privacy && allCriticalAcked && (!couponEnabled || agreements.coupon)
-    const newVal = !allChecked
-    setAgreements({ contract: newVal, privacy: newVal, coupon: couponEnabled ? newVal : false })
-    if (newVal) {
-      const newAcks = {}
-      CRITICAL_CONTRACT_INDICES.forEach((i) => { newAcks[i] = true })
-      setCriticalAcks((prev) => ({ ...prev, ...newAcks }))
-    } else {
-      setCriticalAcks({})
-    }
-  }, [agreements, allCriticalAcked, couponEnabled])
+    // 전체동의는 필수 항목 체크박스만 토글. 선택(instaConsent)은 제외(별도 opt-in, 개인정보보호법 §22⑤).
+    const requiredKeys = ['contract', 'privacy', 'thirdparty', ...(couponEnabled ? ['coupon'] : [])]
+    const allBoxesChecked = requiredKeys.every((k) => agreements[k])
+    const newVal = !allBoxesChecked
+    setAgreements((prev) => ({
+      ...prev,
+      contract: newVal,
+      privacy: newVal,
+      thirdparty: newVal,
+      coupon: couponEnabled ? newVal : false,
+    }))
+    // Option B (약관규제법 §3③④): 중요조항 개별 동의는 전체동의로 우회 불가 — 사용자가 직접 ack.
+    // 해제 시에만 초기화하고, 동의 시에는 자동 체크하지 않는다.
+    if (!newVal) setCriticalAcks({})
+  }, [agreements, couponEnabled])
 
   // ── Validation ──
   const validateForm = useCallback(() => {
@@ -279,8 +284,10 @@ export default function FunnelPage() {
     return Object.keys(validationErrors).length === 0
   }, [formData])
 
+  // instaConsent(선택)은 제외 — 개인정보보호법 §22⑤ (선택 미동의로 서비스 거부 불가)
   const allRequiredAgreed =
-    agreements.contract && agreements.privacy && allCriticalAcked && (!couponEnabled || agreements.coupon)
+    agreements.contract && agreements.privacy && agreements.thirdparty &&
+    allCriticalAcked && (!couponEnabled || agreements.coupon)
 
   // 쿠폰 이벤트 필수 입력 검증 (ON일 때만)
   // crew 인원=0이면 "쿠폰 0장 발급" 무의미 상태이므로 검증 실패.

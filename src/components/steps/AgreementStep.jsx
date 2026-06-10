@@ -61,7 +61,8 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
   const [expandedId, setExpandedId] = useState('contract') // 계약 자동 펼침
   // 쿠폰 이벤트 ON일 때만 쿠폰 약관 추가 노출
   const displayedAgreements = couponEnabled ? [...AGREEMENTS, COUPON_AGREEMENT] : AGREEMENTS
-  const allChecked = displayedAgreements.every((a) => agreements[a.id])
+  // 선택(optional) 항목은 전체동의 충족 여부에서 제외 (개인정보보호법 §22⑤ — 선택 미동의로 서비스 거부 불가)
+  const allRequiredChecked = displayedAgreements.filter((a) => !a.optional).every((a) => agreements[a.id])
 
   // critical 조항 인덱스는 agreements.js에서 import (FunnelPage와 단일 출처 공유)
   const allCriticalAcked = CRITICAL_CONTRACT_INDICES.every((i) => criticalAcks?.[i])
@@ -111,12 +112,12 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
         onClick={onToggleAll}
         className="w-full flex items-center gap-3 p-4 rounded-2xl mb-4 transition-all duration-200"
         style={{
-          border: `2px solid ${allChecked && allCriticalAcked ? '#01DF82' : 'rgba(255,255,255,0.12)'}`,
-          backgroundColor: allChecked && allCriticalAcked ? 'rgba(1,223,130,0.08)' : 'rgba(255,255,255,0.03)',
+          border: `2px solid ${allRequiredChecked && allCriticalAcked ? '#01DF82' : 'rgba(255,255,255,0.12)'}`,
+          backgroundColor: allRequiredChecked && allCriticalAcked ? 'rgba(1,223,130,0.08)' : 'rgba(255,255,255,0.03)',
           cursor: 'pointer',
         }}
       >
-        <Checkbox checked={allChecked && allCriticalAcked} onChange={onToggleAll} size={26} />
+        <Checkbox checked={allRequiredChecked && allCriticalAcked} onChange={onToggleAll} size={26} />
         <span className="text-base font-bold text-white">전체 동의하기</span>
       </motion.button>
 
@@ -146,8 +147,8 @@ export default function AgreementStep({ agreements, onToggle, onToggleAll, criti
                 />
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                    <span style={{ color: '#01DF82', fontWeight: 700 }}>
-                      [필수]
+                    <span style={{ color: agreement.optional ? 'rgba(255,255,255,0.45)' : '#01DF82', fontWeight: 700 }}>
+                      {agreement.optional ? '[선택]' : '[필수]'}
                     </span>{' '}
                     {agreement.title}
                   </span>
