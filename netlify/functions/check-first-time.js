@@ -1,4 +1,4 @@
-// check-first-time.js - 사업자번호로 기존 신청 여부 조회 (첫 신청 할인 판단용)
+// check-first-time.js - 사업자번호로 기존 신청 여부(재신청 여부) 조회 (재신청 할인 판단용)
 
 import { buildCorsHeaders, sanitizeForFormula } from './jwt-utils.js'
 import { TABLE_CONFIG } from './shared-constants.js'
@@ -60,9 +60,10 @@ export default async (req) => {
     }
 
     const data = await response.json()
-    const isFirstTime = !data.records || data.records.length === 0
+    // 재신청 여부: 기존 신청 이력(레코드)이 있으면 재신청자 → 할인 대상
+    const isReturning = !!(data.records && data.records.length > 0)
 
-    return jsonResponse({ isFirstTime })
+    return jsonResponse({ isReturning })
   } catch (err) {
     return jsonResponse({ error: err.message }, 500)
   }

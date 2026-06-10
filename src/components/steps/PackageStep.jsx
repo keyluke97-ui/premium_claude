@@ -1,4 +1,4 @@
-// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar + 첫 신청 할인 포함)
+// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar + 재신청 할인 포함)
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp, Search, BadgePercent } from 'lucide-react'
@@ -34,7 +34,7 @@ const TIER_ICONS = {
 }
 
 // 등급별 단가 요약 바 컴포넌트 (할인 표시 지원)
-function TierSummaryBar({ isFirstTime }) {
+function TierSummaryBar({ isReturning }) {
   return (
     <div
       className="flex items-center justify-between rounded-xl px-4 py-3 mb-5"
@@ -51,7 +51,7 @@ function TierSummaryBar({ isFirstTime }) {
             )}
             <TierIcon size={13} color={tierColor} />
             <span className="text-xs font-semibold" style={{ color: tierColor }}>{tier.label}</span>
-            {isFirstTime ? (
+            {isReturning ? (
               <span className="flex items-center gap-1">
                 <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatPriceShort(tier.price)}</span>
                 <span className="text-xs font-bold" style={{ color: '#01DF82' }}>{formatPriceShort(discountPrice)}</span>
@@ -157,21 +157,21 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
   const [showGuide, setShowGuide] = useState(false)
 
-  // 첫 신청 할인 관련 상태
+  // 재신청 할인 관련 상태
   const [bizNumber, setBizNumber] = useState('')
   const [bizChecked, setBizChecked] = useState(false)
-  const [isFirstTime, setIsFirstTime] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
   const [bizLoading, setBizLoading] = useState(false)
   const [bizError, setBizError] = useState('')
 
   // sessionStorage에서 복원 (뒤로가기 시)
   useEffect(() => {
     const savedBiz = sessionStorage.getItem('bizNumber')
-    const savedFirstTime = sessionStorage.getItem('isFirstTime')
+    const savedReturning = sessionStorage.getItem('isReturning')
     if (savedBiz) {
       setBizNumber(savedBiz)
       setBizChecked(true)
-      setIsFirstTime(savedFirstTime === 'true')
+      setIsReturning(savedReturning === 'true')
     }
   }, [])
 
@@ -185,13 +185,13 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       return
     }
     setBizChecked(true)
-    setIsFirstTime(result.isFirstTime)
+    setIsReturning(result.isReturning)
     sessionStorage.setItem('bizNumber', bizNumber)
-    sessionStorage.setItem('isFirstTime', String(result.isFirstTime))
+    sessionStorage.setItem('isReturning', String(result.isReturning))
     // 이미 선택된 플랜이 있으면 할인 적용/해제
     if (selected && selected.id !== 'custom') {
       const originalPlan = pkg?.plans?.find(p => p.id === selected.id) || selected
-      onSelect(result.isFirstTime ? computeDiscountedPlan(originalPlan) : originalPlan)
+      onSelect(result.isReturning ? computeDiscountedPlan(originalPlan) : originalPlan)
     }
   }
 
@@ -222,7 +222,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
   const handlePlanSelect = (plan) => {
     setIsCustom(false)
-    onSelect(isFirstTime ? computeDiscountedPlan(plan) : plan)
+    onSelect(isReturning ? computeDiscountedPlan(plan) : plan)
   }
 
   const customTotal = customCrew ? calcCrewPrice(customCrew) : 0
@@ -262,14 +262,14 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
       <CreatorGuideSheet open={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* 사업자번호 입력 + 첫 신청 조회 */}
+      {/* 사업자번호 입력 + 재신청 조회 */}
       <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(1,223,130,0.04)', border: '1px solid rgba(1,223,130,0.15)' }}>
         <div className="flex items-center gap-2 mb-1">
           <BadgePercent size={15} style={{ color: '#01DF82' }} />
-          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>첫 신청이라면 최대 20% 할인!</span>
+          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>재신청이라면 최대 20% 할인!</span>
         </div>
         <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
-          사업자 번호로 첫 신청 여부를 확인해보세요
+          사업자 번호로 재신청 여부를 확인해보세요
         </p>
         <div className="flex flex-wrap gap-1.5 mb-3">
           <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>아이콘 30만→25만</span>
@@ -284,9 +284,9 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
               setBizNumber(e.target.value)
               if (bizChecked) {
                 setBizChecked(false)
-                setIsFirstTime(false)
+                setIsReturning(false)
                 sessionStorage.removeItem('bizNumber')
-                sessionStorage.removeItem('isFirstTime')
+                sessionStorage.removeItem('isReturning')
                 // 이미 할인 적용된 플랜이 있으면 정가로 되돌림
                 if (selected && selected.isDiscounted) {
                   const originalPlan = pkg?.plans?.find(p => p.id === selected.id)
@@ -339,18 +339,18 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
               exit={{ opacity: 0 }}
               className="mt-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2"
               style={{
-                backgroundColor: isFirstTime ? 'rgba(1,223,130,0.1)' : 'rgba(255,255,255,0.06)',
-                border: `1px solid ${isFirstTime ? 'rgba(1,223,130,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                color: isFirstTime ? '#01DF82' : 'rgba(255,255,255,0.6)',
+                backgroundColor: isReturning ? 'rgba(1,223,130,0.1)' : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${isReturning ? 'rgba(1,223,130,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                color: isReturning ? '#01DF82' : 'rgba(255,255,255,0.6)',
               }}
             >
-              {isFirstTime ? (
+              {isReturning ? (
                 <>
                   <BadgePercent size={14} />
-                  첫 신청 할인 대상입니다! 해당 플랜에 할인가가 반영돼요.
+                  재신청 할인 대상입니다! 해당 플랜에 할인가가 반영돼요.
                 </>
               ) : (
-                '기존 신청 이력이 있습니다. 정가가 적용됩니다.'
+                '첫 신청이시네요. 정가가 적용됩니다.'
               )}
             </motion.div>
           )}
@@ -358,7 +358,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       </div>
 
       {/* 등급별 단가 요약 바 */}
-      <TierSummaryBar isFirstTime={isFirstTime && !isCustom && !isDirectCustom} />
+      <TierSummaryBar isReturning={isReturning && !isCustom && !isDirectCustom} />
 
       {/* 직접 선택 모드: 크루 카운터만 표시 */}
       {isDirectCustom && (
@@ -462,15 +462,15 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                   </span>
                 </div>
 
-                <BreakdownLine crew={plan.crew} showDiscount={isFirstTime && plan.discountEligible} />
+                <BreakdownLine crew={plan.crew} showDiscount={isReturning && plan.discountEligible} />
 
                 <div className="text-sm mt-3 mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{plan.effect}</div>
-                {isFirstTime && plan.discountEligible ? (() => {
+                {isReturning && plan.discountEligible ? (() => {
                   const discounted = computeDiscountedPlan(plan)
                   return (
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}>첫 신청 할인</span>
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}>재신청 할인</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm line-through" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatPrice(plan.price)}</span>
