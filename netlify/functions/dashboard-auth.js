@@ -51,7 +51,8 @@ export default async (request) => {
 
   try {
     // CHANGED: types 배열 수신 — [{type, recordId}] 형태. 단일 type/recordId도 하위 호환
-    const { businessNumber, accommodationName, phoneLastFour, recordId, type, types } = await request.json()
+    // CHANGED: emailPrefix 수신 — 이메일 로컬파트 앞 3자리 (연락처와 AND 검증)
+    const { businessNumber, accommodationName, phoneLastFour, emailPrefix, recordId, type, types } = await request.json()
 
     if (!businessNumber || !accommodationName || !phoneLastFour) {
       return jsonResponse({ error: '사업자 번호, 캠핑장 이름, 연락처 뒷자리를 모두 입력해주세요.' }, 400)
@@ -61,6 +62,9 @@ export default async (request) => {
     if (cleanPhoneLastFour.length !== 4) {
       return jsonResponse({ error: '연락처 뒷자리 4자리를 정확히 입력해주세요.' }, 400)
     }
+
+    // 이메일 앞자리 정규화 — 소문자 + 공백 제거 (최대 3자)
+    const cleanEmailPrefix = (emailPrefix || '').trim().toLowerCase().slice(0, 3)
 
     const cleanNumber = businessNumber.replace(/[^0-9]/g, '')
 
@@ -101,7 +105,11 @@ export default async (request) => {
           const filterFormula = encodeURIComponent(
             `AND(SUBSTITUTE({${config.businessNumberField}}, '-', '')='${sanitizeForFormula(cleanNumber)}', {${config.accommodationNameField}}='${sanitizeForFormula(accommodationName)}')`
           )
-          const fieldsQuery = 'fields%5B%5D=' + encodeURIComponent(config.phoneField)
+          // CHANGED: 이메일 필드도 함께 조회 (이메일 앞자리 검증용)
+          const fieldsQuery = [config.phoneField, config.emailField]
+            .filter(Boolean)
+            .map((f) => 'fields%5B%5D=' + encodeURIComponent(f))
+            .join('&')
           const airtableUrl =
             `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(tableId)}` +
             `?filterByFormula=${filterFormula}&${fieldsQuery}&maxRecords=1`
@@ -115,10 +123,21 @@ export default async (request) => {
         }
 
         const storedPhone = (record.fields[config.phoneField] || '').replace(/[^0-9]/g, '')
+        // CHANGED: 이메일 로컬파트 앞 3자리 추출 (로컬파트가 3자 미만이면 전체)
+        let storedEmailPrefix = ''
+        if (config.emailField) {
+          const storedEmail = (record.fields[config.emailField] || '').trim().toLowerCase()
+          const atIndex = storedEmail.indexOf('@')
+          if (atIndex > 0) {
+            const local = storedEmail.slice(0, atIndex)
+            storedEmailPrefix = local.slice(0, Math.min(3, local.length))
+          }
+        }
         candidateRecords.push({
           entryType,
           recordId: record.id,
           phoneLastFour: storedPhone.slice(-4),
+          emailPrefix: storedEmailPrefix,
         })
       } catch (entryError) {
         console.error(`[auth] ${entryType} 조회 실패:`, entryError.message)
@@ -131,7 +150,17 @@ export default async (request) => {
       (r) => r.phoneLastFour && r.phoneLastFour === cleanPhoneLastFour
     )
 
-    if (!phoneVerified) {
+    // CHANGED: 이메일 앞 3자리 AND 검증 — 그룹 내 하나라도 매칭 시 통과 (연락처와 동일 패턴)
+    // 이메일이 비어있는 옛 레코드만 있는 그룹은 연락처 단독 인증으로 폴백 (잠금 방지)
+    const hasAnyEmail = candidateRecords.some((r) => r.emailPrefix)
+    if (hasAnyEmail && !cleanEmailPrefix) {
+      return jsonResponse({ error: '이메일 앞 3자리를 입력해주세요.' }, 400)
+    }
+    const emailVerified = !hasAnyEmail || candidateRecords.some(
+      (r) => r.emailPrefix && r.emailPrefix === cleanEmailPrefix
+    )
+
+    if (!phoneVerified || !emailVerified) {
       return jsonResponse({ error: '인증 정보가 일치하지 않습니다.' }, 401)
     }
 

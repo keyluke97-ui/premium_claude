@@ -10,6 +10,7 @@ export const TABLE_CONFIG = {
     businessNumberField: '사업자 번호',
     accommodationNameField: '숙소 이름을 적어주세요.',
     phoneField: '연락처',
+    emailField: '캠지기님 이메일',
     label: '프리미엄 협찬',
   },
   partner: {

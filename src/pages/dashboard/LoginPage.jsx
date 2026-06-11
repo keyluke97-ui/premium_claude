@@ -60,6 +60,8 @@ export default function LoginPage() {
   // CHANGED: 선택된 캠핑장 — { name, types: [{type, recordId}] }
   const [selectedAccommodation, setSelectedAccommodation] = useState(null)
   const [phoneLastFour, setPhoneLastFour] = useState('')
+  // CHANGED: 이메일 앞 3자리 입력 (연락처와 AND 인증)
+  const [emailPrefix, setEmailPrefix] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -92,7 +94,7 @@ export default function LoginPage() {
       const accommodationItems = data.accommodations.map((item) => {
         // 하위 호환: 이전 형식 {name, recordId, type} → 새 형식으로 변환
         if (!item.types && item.type) {
-          return { name: item.name, types: [{ type: item.type, recordId: item.recordId }] }
+          return { name: item.name, types: [{ type: item.type, recordId: item.recordId }], maskedEmails: item.maskedEmails || [] }
         }
         return item
       })
@@ -129,8 +131,15 @@ export default function LoginPage() {
           return
         }
 
-        // CHANGED: types 배열 전달 (서버가 복수 타입 JWT 발급)
-        await login(cleanDigits, selectedAccommodation.name, cleanPhone, selectedAccommodation.types)
+        // CHANGED: 이메일 앞자리 정규화 (소문자, 공백 제거)
+        const cleanEmailPrefix = emailPrefix.trim().toLowerCase()
+        if (cleanEmailPrefix.length === 0) {
+          setError('이메일 앞 3자리를 입력해주세요.')
+          return
+        }
+
+        // CHANGED: types 배열 전달 (서버가 복수 타입 JWT 발급) + emailPrefix AND 인증
+        await login(cleanDigits, selectedAccommodation.name, cleanPhone, cleanEmailPrefix, selectedAccommodation.types)
         navigate('/dashboard', { replace: true })
       } catch (loginError) {
         setError(loginError.message)
@@ -138,14 +147,14 @@ export default function LoginPage() {
         setLoading(false)
       }
     },
-    [businessNumber, selectedAccommodation, phoneLastFour, navigate]
+    [businessNumber, selectedAccommodation, phoneLastFour, emailPrefix, navigate]
   )
 
   /** Enter 키 처리 */
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !loading) {
       if (step === 'input') handleLookup()
-      else if (step === 'select' && selectedAccommodation?.name && phoneLastFour.replace(/[^0-9]/g, '').length === 4) handleLogin()
+      else if (step === 'select' && selectedAccommodation?.name && phoneLastFour.replace(/[^0-9]/g, '').length === 4 && emailPrefix.trim().length > 0) handleLogin()
     }
   }
 
@@ -237,6 +246,7 @@ export default function LoginPage() {
                       setStep('input')
                       setSelectedAccommodation(null)
                       setPhoneLastFour('')
+                      setEmailPrefix('')
                       setError('')
                     }}
                     className="mr-2 p-2 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -374,6 +384,47 @@ export default function LoginPage() {
                     협찬 신청 시 입력한 연락처의 뒷자리 4자리
                   </p>
                 </div>
+
+                {/* CHANGED: 이메일 앞 3자리 입력 필드 (연락처와 AND 인증) */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-white mb-2">
+                    이메일 앞 3자리
+                  </label>
+                  <input
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={3}
+                    placeholder="abc"
+                    value={emailPrefix}
+                    onChange={(event) => {
+                      // 공백 제거 + 소문자 정규화 (이메일 로컬파트 앞 3자)
+                      const value = event.target.value.replace(/\s/g, '').toLowerCase().slice(0, 3)
+                      setEmailPrefix(value)
+                      setError('')
+                    }}
+                    onKeyDown={handleKeyDown}
+                    className="w-full px-4 py-3 rounded-xl text-white text-base"
+                    style={{
+                      backgroundColor: '#252525',
+                      border: `1px solid ${error ? '#FF4444' : BORDER_COLOR}`,
+                      transition: 'border-color 0.2s',
+                    }}
+                    disabled={loading}
+                  />
+                  <p className="text-xs mt-2" style={{ color: TEXT_MUTED }}>
+                    협찬 신청 시 입력한 이메일의 앞 3자리
+                    {selectedAccommodation?.maskedEmails?.length > 0 && (
+                      <>
+                        {' · '}
+                        <span style={{ color: '#FFFFFF' }}>
+                          {selectedAccommodation.maskedEmails.join(', ')}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -398,7 +449,7 @@ export default function LoginPage() {
             const isButtonDisabled =
               loading ||
               (step === 'input' && extractDigits(businessNumber).length !== 10) ||
-              (step === 'select' && (!selectedAccommodation?.name || phoneLastFour.replace(/[^0-9]/g, '').length !== 4))
+              (step === 'select' && (!selectedAccommodation?.name || phoneLastFour.replace(/[^0-9]/g, '').length !== 4 || emailPrefix.trim().length === 0))
 
             return (
               <button

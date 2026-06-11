@@ -11,6 +11,20 @@ function jsonResponse(body, status = 200) {
 }
 
 /**
+ * 이메일 마스킹 — 로컬파트 앞 3자리를 가리고 나머지는 노출
+ * 예: camfit@gmail.com → ***fit@gmail.com / ab@gmail.com → ***@gmail.com
+ * 가린 앞자리가 인증 입력값이므로 힌트에 절대 노출하지 않는다.
+ */
+function maskEmail(email) {
+  const raw = (email || '').trim()
+  const atIndex = raw.indexOf('@')
+  if (atIndex <= 0) return ''
+  const local = raw.slice(0, atIndex)
+  const maskLen = Math.min(3, local.length)
+  return `***${local.slice(maskLen)}${raw.slice(atIndex)}`
+}
+
+/**
  * 단일 Airtable 테이블에서 사업자번호로 캠핑장 목록 조회
  * @param {string} tableId - Airtable 테이블 ID
  * @param {string} cleanNumber - 숫자만 남긴 사업자번호
@@ -33,6 +47,8 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
   ]
   // 프리미엄 테이블만 선택 예산 필드 추가 (복수 신청 구분용)
   if (type === 'premium') fieldNames.push('선택 예산')
+  // 이메일 인증 힌트용 (마스킹 후 전달, 원본은 클라이언트에 미전송)
+  if (config.emailField) fieldNames.push(config.emailField)
   const fieldsQuery = fieldNames.map(f => 'fields%5B%5D=' + encodeURIComponent(f)).join('&')
 
   const airtableUrl =
@@ -63,6 +79,8 @@ async function fetchAccommodationsFromTable(tableId, cleanNumber, config, apiKey
         phone: (record.fields[config.phoneField] || '').replace(/[^0-9]/g, ''),
         // 프리미엄: 선택예산으로 복수 신청 구분, 파트너: null
         budget: type === 'premium' ? (record.fields['선택 예산'] || '') : '',
+        // 이메일 인증 힌트 (마스킹된 형태만, 원본 미전송)
+        maskedEmail: config.emailField ? maskEmail(record.fields[config.emailField]) : '',
       }))
   } catch (error) {
     console.error(`[lookup] ${type} 테이블 조회 에러:`, error.message)
@@ -133,20 +151,26 @@ export default async (request) => {
         if (item.phone && !existing.phones.includes(item.phone)) {
           existing.phones.push(item.phone)
         }
+        // 복수 신청 시 서로 다른 이메일이면 모두 힌트로 보존
+        if (item.maskedEmail && !existing.maskedEmails.includes(item.maskedEmail)) {
+          existing.maskedEmails.push(item.maskedEmail)
+        }
       } else {
         groupedMap.set(groupKey, {
           name: item.name,
           names: [item.name],
           phones: item.phone ? [item.phone] : [],
+          maskedEmails: item.maskedEmail ? [item.maskedEmail] : [],
           types: [{ type: item.type, recordId: item.recordId, budget: item.budget || '' }],
         })
       }
     }
-    // CHANGED: 클라이언트에 phone은 전송하지 않음 (보안)
+    // CHANGED: 클라이언트에 phone은 전송하지 않음 (보안). 이메일은 마스킹본만 전송
     const accommodations = Array.from(groupedMap.values()).map((group) => ({
       name: group.name,
       names: group.names,
       types: group.types,
+      maskedEmails: group.maskedEmails,
     }))
 
     return jsonResponse({ success: true, accommodations })

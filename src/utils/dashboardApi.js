@@ -103,13 +103,14 @@ export async function lookupAccommodations(businessNumber) {
   return handleResponse(response)
 }
 
-/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리 + types 배열) */
+/** 로그인 (사업자번호 + 캠핑장 이름 + 연락처 뒷자리 4자리 + 이메일 앞 3자리 + types 배열) */
 // CHANGED: types 배열을 서버에 전달, 서버가 복수 타입 JWT 발급
-export async function login(businessNumber, accommodationName, phoneLastFour, types) {
+// CHANGED: emailPrefix 추가 — 연락처와 AND 검증
+export async function login(businessNumber, accommodationName, phoneLastFour, emailPrefix, types) {
   const response = await fetch(`${API_BASE}/api/dashboard/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour, types }),
+    body: JSON.stringify({ businessNumber, accommodationName, phoneLastFour, emailPrefix, types }),
   })
   const data = await handleResponse(response)
 
