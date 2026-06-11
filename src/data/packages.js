@@ -247,7 +247,7 @@ const PACKAGES = {
 export const DISCOUNT_PRICING = {
   icon: { label: '아이콘', price: 250000, camfitFee: 10000, creatorFee: 240000 },
   partner: { label: '파트너', price: 120000, camfitFee: 10000, creatorFee: 110000 },
-  rising: { label: '라이징', price: 70000, camfitFee: 10000, creatorFee: 60000 },
+  rising: { label: '라이징', price: 80000, camfitFee: 10000, creatorFee: 70000 },
 }
 
 /** 플랜에 재신청 할인을 적용한 새 플랜 객체 반환 */

@@ -53,7 +53,7 @@ export default async (req) => {
     const isDiscounted = selectedPlan?.isDiscounted === true
     const ICON_PRICE = isDiscounted ? 250000 : 300000
     const PARTNER_PRICE = isDiscounted ? 120000 : 150000
-    const RISING_PRICE = isDiscounted ? 70000 : 100000
+    const RISING_PRICE = isDiscounted ? 80000 : 100000
 
     // CHANGED: 팔로워 쿠폰 이벤트 필드 매핑 (옵트인 시에만. OFF면 빈 객체 → 기존 프리미엄 신청과 동일)
     // 쿠폰 배포 크리에이터 = 프리미엄 crew와 동일인 → 기존 '⭐️/✔️/🔥 모집 인원' 필드를 재사용.

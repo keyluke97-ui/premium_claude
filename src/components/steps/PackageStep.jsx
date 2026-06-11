@@ -296,7 +296,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
         <div className="flex flex-wrap gap-1.5 mb-3">
           <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>아이콘 30만→25만</span>
           <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>파트너 15만→12만</span>
-          <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>라이징 10만→7만</span>
+          <span className="text-xs px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}>라이징 10만→8만</span>
         </div>
         <div className="flex gap-2">
           <input
