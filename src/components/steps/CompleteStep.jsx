@@ -66,7 +66,7 @@ function TimelineItem({ step, title, detail, highlight = false }) {
   )
 }
 
-export default function CompleteStep({ budget, plan, formData, crew, couponSummary }) {
+export default function CompleteStep({ plan, formData, crew, couponSummary }) {
   // 쿠폰 발급 규모 = 배포 크리에이터 수 × 인당 쿠폰 장수 (CouponEventStep 계산식과 동일)
   const couponCrewTotal = (crew?.icon || 0) + (crew?.partner || 0) + (crew?.rising || 0)
   const totalCoupons = couponCrewTotal * (couponSummary?.perCreator || 0)
@@ -235,10 +235,6 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
         <div className="text-sm font-bold text-white mb-4">신청 내용 요약</div>
         <div className="flex flex-col gap-3">
           <SummaryRow label="캠핑장" value={formData.accommodationName} />
-          <SummaryRow
-            label="예산"
-            value={budget === 'custom' || plan?.id === 'custom' ? '맞춤 상담' : `${budget}만원`}
-          />
           {plan && <SummaryRow label="선택 플랜" value={plan.name} />}
           <SummaryRow label="대표자" value={formData.representativeName} />
           <SummaryRow label="연락처" value={formData.phone} />
@@ -403,7 +399,13 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
               transition={{ type: 'spring', stiffness: 260, damping: 26 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full rounded-t-3xl p-6 text-left"
-              style={{ maxWidth: 448, backgroundColor: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{
+                maxWidth: 448,
+                backgroundColor: '#1A1A1A',
+                border: '1px solid rgba(255,255,255,0.1)',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 pr-2">
@@ -414,7 +416,7 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
                     <Check size={16} color="#01DF82" strokeWidth={3} />
                   </span>
                   <span className="text-base font-bold text-white leading-tight">
-                    신청 완료! 두 가지만 확인해주세요
+                    신청 완료! 세 가지만 확인해주세요
                   </span>
                 </div>
                 <button
@@ -426,7 +428,63 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
                 </button>
               </div>
 
-              {/* 1) 이메일 진행상황 안내 */}
+              {/* 1) 입금 안내 — 팝업 닫은 뒤 입금 누락이 잦아 계좌·금액을 팝업 안에서 바로 노출 */}
+              <div
+                className="flex items-start gap-3 p-3.5 rounded-xl mb-3"
+                style={{ backgroundColor: 'rgba(1,223,130,0.06)', border: '1px solid rgba(1,223,130,0.2)' }}
+              >
+                <CreditCard size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white mb-0.5">먼저 입금을 완료해주세요</div>
+                  <div className="text-xs mb-2.5" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                    선수납 방식이에요. 입금이 확인되면 크리에이터 모집이 시작됩니다.
+                  </div>
+                  <div className="p-2.5 rounded-lg" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>하나은행</div>
+                        <div className="text-sm font-bold text-white tracking-wide">{accountNumber}</div>
+                      </div>
+                      <button
+                        onClick={handleCopy}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                        style={{
+                          backgroundColor: copied ? 'rgba(1,223,130,0.15)' : 'rgba(255,255,255,0.08)',
+                          color: copied ? '#01DF82' : 'rgba(255,255,255,0.7)',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Copy size={12} />
+                        {copied ? '복사됨!' : '복사'}
+                      </button>
+                    </div>
+                    <div className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      예금주: <span className="text-white font-semibold">(주) 넥스트에디션</span>
+                    </div>
+                    {computedPrice > 0 && (
+                      <div
+                        className="flex items-center justify-between gap-2 mt-2 pt-2"
+                        style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+                      >
+                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
+                        <div className="flex items-center gap-1.5">
+                          {plan?.isDiscounted && plan?.originalPrice > 0 && (
+                            <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                              {formatPrice(Math.round(plan.originalPrice * 1.1))}
+                            </span>
+                          )}
+                          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>
+                            {formatPrice(computedPrice)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2) 이메일 진행상황 안내 */}
               <div className="flex items-start gap-3 p-3.5 rounded-xl mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
                 <Mail size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
                 <div className="min-w-0">
@@ -441,10 +499,10 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
                 </div>
               </div>
 
-              {/* 2) 대시보드 저장 안내 */}
+              {/* 3) 대시보드 저장 안내 — 강조는 입금 블록이 독점하도록 중립 배경 */}
               <div
                 className="flex items-start gap-3 p-3.5 rounded-xl mb-4"
-                style={{ backgroundColor: 'rgba(1,223,130,0.06)', border: '1px solid rgba(1,223,130,0.2)' }}
+                style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
               >
                 <LayoutDashboard size={18} style={{ color: '#01DF82', flexShrink: 0, marginTop: 1 }} />
                 <div className="flex-1 min-w-0">
@@ -476,21 +534,24 @@ export default function CompleteStep({ budget, plan, formData, crew, couponSumma
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  setShowWelcome(false)
-                  // 팝업 닫으면 최상단(입금 안내)으로 이동 — 입금이 다음 행동이므로 바로 보이게
-                  window.scrollTo({ top: 0, behavior: 'smooth' })
-                }}
-                className="w-full py-3.5 rounded-xl text-sm font-bold"
-                style={{ backgroundColor: '#01DF82', color: '#000', border: 'none', cursor: 'pointer' }}
-              >
-                확인했어요
-              </button>
-              <p className="text-xs text-center mt-2.5" style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
-                먼저 아래 <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>입금 안내</span>를 확인해 주세요.
-                대시보드는 입금 후 이용하시면 됩니다.
-              </p>
+              {/* CTA는 시트 하단에 고정 — 3블록으로 길어져 작은 화면에서 잘리는 것 방지 */}
+              <div className="sticky -mx-6 -mb-6 px-6 pt-2 pb-6" style={{ bottom: 0, backgroundColor: '#1A1A1A' }}>
+                <button
+                  onClick={() => {
+                    setShowWelcome(false)
+                    // 팝업 닫으면 최상단(입금 안내)으로 이동 — 입금이 다음 행동이므로 바로 보이게
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  className="w-full py-3.5 rounded-xl text-sm font-bold"
+                  style={{ backgroundColor: '#01DF82', color: '#000', border: 'none', cursor: 'pointer' }}
+                >
+                  확인했어요
+                </button>
+                <p className="text-xs text-center mt-2.5" style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>입금이 확인되어야</span> 협찬이 시작돼요.
+                  대시보드는 입금 후 이용하시면 됩니다.
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
