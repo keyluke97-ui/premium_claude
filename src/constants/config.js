@@ -35,8 +35,8 @@ export const DISCOUNT_RANGE = {
 // 쿠폰 적용 요일 (Airtable `쿠폰 적용 요일` 필드 옵션과 1:1 매핑)
 export const COUPON_APPLY_DAYS = [
   { id: 'weekday_only',            airtableValue: '평일전용',         label: '평일만',            description: '일~목 입실 시 할인 적용' },
-  { id: 'weekday_weekend',         airtableValue: '평일+주말(금토)',  label: '평일 + 주말',        description: '일~토 입실 시 할인 적용', recommended: true },
-  { id: 'weekday_weekend_holiday', airtableValue: '평일+주말+공휴일', label: '평일 + 주말 + 공휴일', description: '공휴일 포함 전체 기간 할인 적용' },
+  { id: 'weekday_weekend',         airtableValue: '평일+주말(금토)',  label: '평일 + 주말',        description: '일~토 입실 시 할인 적용' },
+  { id: 'weekday_weekend_holiday', airtableValue: '평일+주말+공휴일', label: '평일 + 주말 + 공휴일', description: '공휴일 포함 전체 기간 할인 적용', recommended: true },
 ]
 
 // 쿠폰을 배포하는 크리에이터는 프리미엄 패키지에서 모집한 그 크리에이터들임.
@@ -54,6 +54,6 @@ export const COUPON_PER_CREATOR_PRESETS = [
 export const COUPON_EVENT_DEFAULTS = {
   enabled: true,
   discount: 20000,
-  couponApplyDays: 'weekday_weekend',
+  couponApplyDays: 'weekday_weekend_holiday',
   couponPerCreator: 20,
 }
