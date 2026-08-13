@@ -6,7 +6,18 @@
  *   - AIRTABLE_API_KEY
  *   - AIRTABLE_BASE_ID
  *   - AIRTABLE_TABLE_NAME (선택, 기본값: 캠지기 모집 폼)
+ *   - AUTUMN_SALE (선택, 기본값: on / 'off' 로 두면 전원 기본가)
  */
+
+import { resolvePriceTier } from './price-tier.js'
+import {
+  PRICE_TIER,
+  unitPricesForTier,
+  crewPrice,
+  withVat,
+  isDiscountedTier,
+  isPlanDiscountEligible,
+} from '../../src/constants/pricing.js'
 
 export default async (req) => {
   // CORS preflight
@@ -49,11 +60,30 @@ export default async (req) => {
     const body = await req.json()
     const { budget, formData, crew, planTier, selectedPlan, couponEvent } = body
 
-    // 단가 (재신청 할인 적용 여부에 따라 분기)
-    const isDiscounted = selectedPlan?.isDiscounted === true
-    const ICON_PRICE = isDiscounted ? 250000 : 300000
-    const PARTNER_PRICE = isDiscounted ? 120000 : 150000
-    const RISING_PRICE = isDiscounted ? 80000 : 100000
+    // CHANGED: 가격 구분(기본가/신규/재신청)을 **서버가 직접 판정**한다.
+    //   이전에는 클라이언트가 보낸 selectedPlan.isDiscounted 를 그대로 믿었다. 그래서
+    //   조회 버튼 미클릭·blur 미발생·sessionStorage 캐시 같은 브라우저 사정으로 판정이
+    //   새면 그대로 저장됐고, 값 조작도 가능했다. 여기서 다시 판정하면 모든 신청이
+    //   반드시 한 번은 판정을 거친다.
+    //   할인 제외 플랜은 사업자번호와 무관하게 기본가다 — 판정도 플랜 id 로 한다
+    //   (클라이언트가 보낸 discountEligible 플래그를 믿지 않는다).
+    const planId = selectedPlan?.id
+    const priceTier = isPlanDiscountEligible(planId)
+      ? await resolvePriceTier({
+          apiKey: API_KEY,
+          baseId: BASE_ID,
+          tableId: TABLE,
+          businessNumber: formData?.businessNumber,
+        })
+      : PRICE_TIER.BASE
+
+    const unitPrices = unitPricesForTier(priceTier)
+    const ICON_PRICE = unitPrices.icon
+    const PARTNER_PRICE = unitPrices.partner
+    const RISING_PRICE = unitPrices.rising
+
+    // 할인전금액 = 같은 크루 구성의 기본가 총액 (VAT 별도). 기본가 신청은 0 — 기존 표기 유지.
+    const basePriceTotal = isDiscountedTier(priceTier) ? crewPrice(crew, PRICE_TIER.BASE) : 0
 
     // CHANGED: 팔로워 쿠폰 이벤트 필드 매핑 (옵트인 시에만. OFF면 빈 객체 → 기존 프리미엄 신청과 동일)
     // 쿠폰 배포 크리에이터 = 프리미엄 crew와 동일인 → 기존 '⭐️/✔️/🔥 모집 인원' 필드를 재사용.
@@ -123,9 +153,14 @@ export default async (req) => {
             // 숙소 특장점
             '숙소의 특장점': formData.promotion || '',
 
-            // 재신청 할인 적용 여부 (Airtable 필드명: '이벤트 할인')
-            '이벤트 할인': selectedPlan?.isDiscounted || false,
-            '할인전금액': selectedPlan?.originalPrice || 0,
+            // CHANGED: 가격 구분 3단. '이벤트 할인'·'할인전금액'은 서버 판정 결과에서 파생한다.
+            //   ⚠️ Airtable 수식(캠핏수수료·⭐️/✔️/🔥 협찬 제안 금액)은 **건드리지 않았다.**
+            //      신규·재신청 모두 수수료 10,000이라 기존 `이벤트 할인` 분기가 그대로 정답이다.
+            //      '가격 구분'은 (1) 신규/재신청 집계 (2) dashboard-modify 의 단가 폴백 용도다.
+            //      구분별로 수수료를 다르게 가져갈 때가 오면 그때 수식을 이 필드로 옮긴다.
+            '가격 구분': priceTier, // fldF2gMvjzM7rWywI (기본가/신규/재신청)
+            '이벤트 할인': isDiscountedTier(priceTier),
+            '할인전금액': basePriceTotal,
 
             // 동의 & 비고
             '동의합니다.': '동의',
@@ -165,7 +200,17 @@ export default async (req) => {
     }
 
     const result = await airtableRes.json()
-    return new Response(JSON.stringify({ success: true, data: result }), {
+    // CHANGED: 완료 화면이 **서버가 실제로 저장한 금액**을 그대로 쓰도록 응답에 실어 보낸다.
+    //   클라이언트가 따로 계산하면 판정이 어긋났을 때 화면과 청구가 갈라진다.
+    const pricing = {
+      priceTier,
+      unitPrices,
+      subtotal: crewPrice(crew, priceTier),
+      totalWithVat: withVat(crewPrice(crew, priceTier)),
+      basePriceTotal,
+      isDiscounted: isDiscountedTier(priceTier),
+    }
+    return new Response(JSON.stringify({ success: true, data: result, pricing }), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Building, Users, MessageSquare, AlertCircle, ChevronDown, Tent, FileText, Instagram, Sparkles } from 'lucide-react'
 import { checkFirstTime } from '../../utils/firstTimeCheck'
-import { computeDiscountedPlan } from '../../data/packages'
+import { computePlanPrice } from '../../data/packages'
+import { PRICE_TIER, normalizeTier } from '../../constants/pricing'
 import { BRAND_GREEN } from '../../constants/designTokens'
 
 const REGIONS = [
@@ -64,9 +65,9 @@ const SITE_TYPES = ['글램핑', '두가족존', '방갈로', '오토캠핑', '�
 export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate }) {
   // PackageStep에서 입력한 사업자번호를 sessionStorage에서 복원
   const savedBizNumber = typeof window !== 'undefined' ? sessionStorage.getItem('bizNumber') : null
-  const alreadyCheckedInPackageStep = !!savedBizNumber
 
-  const [bizBannerVisible, setBizBannerVisible] = useState(false)
+  // CHANGED: 배너를 boolean → 가격 구분으로. 신규도 할인 대상이라 양쪽 다 안내해야 한다.
+  const [bannerTier, setBannerTier] = useState(null)
 
   useEffect(() => {
     if (savedBizNumber && !data.businessNumber) {
@@ -74,23 +75,34 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
     }
   }, [])
 
-  // InfoStep 단계에서 사업자번호 blur 시 재신청 여부 조회 → 할인 사후 적용
+  // 사업자번호 blur 시 가격 구분 조회 → 할인 사후 적용
+  // CHANGED: 기존 `if (alreadyCheckedInPackageStep) return` 가드를 제거했다.
+  //   그 가드 탓에 PackageStep에서 한 번 조회했으면 여기서 번호를 고쳐도 재조회가 안 됐고,
+  //   같은 브라우저로 연속 신청할 때 이전 판정이 그대로 남았다(2026-06-17 실제 사례).
+  //   이제는 **저장된 번호와 다를 때만** 다시 조회한다 — 같은 번호면 호출하지 않는다.
   const handleBizBlur = async () => {
-    if (alreadyCheckedInPackageStep) return
     const biz = data.businessNumber || ''
     const clean = biz.replace(/[^0-9]/g, '')
     if (!/^\d{10}$/.test(clean)) return
+
+    const savedClean = (sessionStorage.getItem('bizNumber') || '').replace(/[^0-9]/g, '')
+    const savedTier = sessionStorage.getItem('priceTier')
+    if (clean === savedClean && savedTier) {
+      setBannerTier(normalizeTier(savedTier))
+      return
+    }
+
     const result = await checkFirstTime(biz)
     if (result.error) return
+    const tier = normalizeTier(result.tier)
     sessionStorage.setItem('bizNumber', biz)
-    sessionStorage.setItem('isReturning', String(result.isReturning))
-    if (result.isReturning) {
-      setBizBannerVisible(true)
-      if (plan && plan.id !== 'custom' && plan.discountEligible) {
-        onPlanUpdate?.(computeDiscountedPlan(plan))
-      }
-    } else {
-      setBizBannerVisible(false)
+    sessionStorage.setItem('priceTier', tier)
+    setBannerTier(tier)
+
+    // 카탈로그 원본에서 다시 계산해야 구분이 바뀌어도 왕복이 된다
+    if (plan && plan.id !== 'custom' && plan.discountEligible) {
+      const basePlan = plan.originalPrice ? { ...plan, price: plan.originalPrice } : plan
+      onPlanUpdate?.(computePlanPrice(basePlan, tier))
     }
   }
 
@@ -177,7 +189,8 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                   {hasError}
                 </div>
               )}
-              {field.key === 'businessNumber' && bizBannerVisible && (
+              {/* CHANGED: 신규도 할인 대상이므로 두 구분 모두 안내한다 */}
+              {field.key === 'businessNumber' && bannerTier && bannerTier !== PRICE_TIER.BASE && (
                 <div
                   className="mt-2 px-3 py-2 rounded-lg flex items-start gap-2 text-xs"
                   style={{
@@ -187,7 +200,9 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                 >
                   <Sparkles size={14} style={{ color: BRAND_GREEN, flexShrink: 0, marginTop: 2 }} />
                   <span style={{ color: BRAND_GREEN, fontWeight: 600, lineHeight: 1.5 }}>
-                    재신청 할인 대상이에요! 선택한 플랜에 할인가가 자동 반영됐어요.
+                    {bannerTier === PRICE_TIER.NEW
+                      ? '🍂 가을 할인 적용! 첫 신청 캠핑장 할인가가 자동 반영됐어요.'
+                      : '🍂 가을 할인 적용! 다시 찾아주셔서 감사해요 — 할인가가 자동 반영됐어요.'}
                   </span>
                 </div>
               )}

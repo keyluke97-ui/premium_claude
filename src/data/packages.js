@@ -1,30 +1,32 @@
 import { Zap, Star, TrendingUp, Sparkles, Crown, Layers } from 'lucide-react'
+// CHANGED: 단가는 src/constants/pricing.js 단일 출처를 쓴다 (Netlify Functions와 공용).
+import {
+  PRICE_TIER,
+  TIER_UNIT_PRICES,
+  unitPricesForTier,
+  crewPrice,
+  withVat,
+  isPlanDiscountEligible,
+} from '../constants/pricing'
 
 /**
- * 단가 기준 (VAT 별도 / 1객실 기준)
- * - 아이콘(Icon): 300,000원
- * - 파트너(Partner): 150,000원
- * - 라이징(Rising): 100,000원
+ * 기본가 단가 (VAT 별도 / 1객실 기준) — 화면 라벨용 뷰.
+ * 숫자는 pricing.js 의 기본가 테이블에서 그대로 읽는다. 여기에 값을 적어두지 말 것.
  */
-
 export const PRICING = {
-  icon: { label: '아이콘', price: 300000 },
-  partner: { label: '파트너', price: 150000 }, // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
-  rising: { label: '라이징', price: 100000 }, // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
+  icon: { label: '아이콘', price: TIER_UNIT_PRICES[PRICE_TIER.BASE].icon },
+  partner: { label: '파트너', price: TIER_UNIT_PRICES[PRICE_TIER.BASE].partner },
+  rising: { label: '라이징', price: TIER_UNIT_PRICES[PRICE_TIER.BASE].rising },
 }
 
-/** crew 구성에서 총 금액 계산 (VAT 별도) */
+/** crew 구성에서 총 금액 계산 (VAT 별도) — 기본가 기준 */
 export function calcCrewPrice(crew) {
-  return (
-    PRICING.icon.price * (crew.icon || 0) +
-    PRICING.partner.price * (crew.partner || 0) +
-    PRICING.rising.price * (crew.rising || 0)
-  )
+  return crewPrice(crew, PRICE_TIER.BASE)
 }
 
-/** crew 구성에서 VAT 포함 금액 계산 */
+/** crew 구성에서 VAT 포함 금액 계산 — 기본가 기준 */
 export function calcCrewPriceWithVat(crew) {
-  return Math.round(calcCrewPrice(crew) * 1.1)
+  return withVat(calcCrewPrice(crew))
 }
 
 const PACKAGES = {
@@ -47,7 +49,6 @@ const PACKAGES = {
         Icon: Crown,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'bigicon-70',
@@ -62,7 +63,6 @@ const PACKAGES = {
         Icon: Zap,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'volume-70',
@@ -77,7 +77,6 @@ const PACKAGES = {
         Icon: Layers,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
     ],
   },
@@ -100,7 +99,6 @@ const PACKAGES = {
         Icon: Zap,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'rich-50',
@@ -115,7 +113,6 @@ const PACKAGES = {
         Icon: Star,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'spread-50',
@@ -130,7 +127,6 @@ const PACKAGES = {
         Icon: TrendingUp,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: false,
       },
     ],
   },
@@ -153,7 +149,6 @@ const PACKAGES = {
         Icon: Zap,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'value-30',
@@ -168,7 +163,6 @@ const PACKAGES = {
         Icon: Star,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'beginner-30',
@@ -183,7 +177,6 @@ const PACKAGES = {
         Icon: Sparkles,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #111111 100%)',
-        discountEligible: false,
       },
     ],
   },
@@ -207,7 +200,6 @@ const PACKAGES = {
         Icon: Layers,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-        discountEligible: true,
       },
       {
         id: 'taste-15',
@@ -222,7 +214,6 @@ const PACKAGES = {
         Icon: Star,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #1A1A2E 0%, #111111 100%)',
-        discountEligible: true,
       },
       {
         id: 'rising-exp-15',
@@ -237,31 +228,48 @@ const PACKAGES = {
         Icon: Sparkles,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #111111 100%)',
-        discountEligible: true,
       },
     ],
   },
 }
 
-/** 재신청 할인 단가 (VAT 별도) */
-export const DISCOUNT_PRICING = {
-  icon: { label: '아이콘', price: 250000, camfitFee: 10000, creatorFee: 240000 },
-  partner: { label: '파트너', price: 120000, camfitFee: 10000, creatorFee: 110000 },
-  rising: { label: '라이징', price: 80000, camfitFee: 10000, creatorFee: 70000 },
+// CHANGED: plans[].discountEligible 리터럴을 제거하고 pricing.js 의 제외 목록에서 파생한다.
+//   submit.js 도 같은 목록으로 판정하므로, 화면과 청구가 어긋날 수 없다.
+Object.values(PACKAGES).forEach((pkg) => {
+  pkg.plans.forEach((plan) => {
+    plan.discountEligible = isPlanDiscountEligible(plan.id)
+  })
+})
+
+/**
+ * CHANGED: 재신청 단일 할인 → 가격 구분 3단(기본가·신규·재신청)으로 확장.
+ * 단가 테이블은 pricing.js 로 옮겼다. 화면에서 등급별 단가가 필요하면 이 함수를 쓴다.
+ */
+export function tierUnitPrices(tier) {
+  const p = unitPricesForTier(tier)
+  return {
+    icon: { label: '아이콘', price: p.icon },
+    partner: { label: '파트너', price: p.partner },
+    rising: { label: '라이징', price: p.rising },
+  }
 }
 
-/** 플랜에 재신청 할인을 적용한 새 플랜 객체 반환 */
-export function computeDiscountedPlan(plan) {
-  if (!plan || !plan.crew || !plan.discountEligible) return plan
-  const discountedPrice =
-    DISCOUNT_PRICING.icon.price * (plan.crew.icon || 0) +
-    DISCOUNT_PRICING.partner.price * (plan.crew.partner || 0) +
-    DISCOUNT_PRICING.rising.price * (plan.crew.rising || 0)
+/**
+ * 플랜에 가격 구분을 적용한 **새 플랜 객체**를 반환한다.
+ * - 할인 제외 플랜(discountEligible=false)·기본가는 원본을 그대로 돌려준다.
+ *   카탈로그의 plan.price 는 기본가 crew 합계와 일치하므로 재계산이 불필요하다.
+ * - 원본을 변형하지 않으므로 구분이 바뀌면 카탈로그에서 원본을 다시 읽어 왕복할 수 있다.
+ */
+export function computePlanPrice(plan, tier) {
+  if (!plan || !plan.crew) return plan
+  if (!plan.discountEligible || !tier || tier === PRICE_TIER.BASE) return plan
+  const price = crewPrice(plan.crew, tier)
   return {
     ...plan,
     originalPrice: plan.price,
-    price: discountedPrice,
-    priceWithVat: Math.round(discountedPrice * 1.1),
+    price,
+    priceWithVat: withVat(price),
+    priceTier: tier,
     isDiscounted: true,
   }
 }

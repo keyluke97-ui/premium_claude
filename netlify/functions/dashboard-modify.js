@@ -1,6 +1,7 @@
 // dashboard-modify.js - 미배정 슬롯의 등급 간 인원 변경 + 가격 재계산
 
 import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: Item 8 - Rate Limiting 추가
+import { PRICE_TIER, unitPricesForTier } from '../../src/constants/pricing.js'
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -9,11 +10,16 @@ function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS })
 }
 
-/** 등급별 기본 단가 (VAT 별도) — Airtable 필드에 값이 없을 때의 fallback */
-const DEFAULT_UNIT_PRICES = {
-  icon: 300000,
-  partner: 150000, // CHANGED: 100000 → 150000 (캠지기 제안 금액 상향)
-  rising: 100000, // CHANGED: 50000 → 100000 (캠지기 제안 금액 상향)
+/**
+ * 레코드의 가격 구분에 해당하는 등급 단가를 돌려준다 (Airtable 단가 필드가 비었거나 0일 때의 fallback).
+ * CHANGED: 단가 상수 복사본을 없애고 src/constants/pricing.js 단일 출처를 쓴다.
+ *   `가격 구분`이 없는 과거 레코드는 `이벤트 할인` 체크박스로 환산한다 —
+ *   그 시절 할인 단가가 지금의 '신규'와 같으므로 값이 보존된다.
+ */
+function fallbackPricesFor(formFields) {
+  const tier =
+    formFields['가격 구분'] || (formFields['이벤트 할인'] === true ? PRICE_TIER.NEW : PRICE_TIER.BASE)
+  return unitPricesForTier(tier)
 }
 
 /** VAT 포함 총액 계산 */
@@ -115,10 +121,15 @@ export default async (request) => {
     }
 
     // CHANGED: Item 6 - Airtable 레코드의 단가 필드를 우선 사용, 없으면 기본값 fallback
+    // CHANGED: 미선택 등급은 submit.js가 단가에 0을 저장한다(`crew.icon > 0 ? ICON_PRICE : 0`).
+    //   0은 falsy라 여기서 반드시 fallback을 타는데, 폴백이 정가 고정이면
+    //   재신청 할인 고객이 대시보드에서 새 등급을 추가할 때 그 등급만 정가로 청구됐다.
+    //   → 레코드의 '이벤트 할인'으로 폴백 테이블 자체를 고른다.
+    const fallbackUnitPrices = fallbackPricesFor(formFields)
     const unitPrices = {
-      icon: formFields['아이콘 크리에이터 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.icon,
-      partner: formFields['파트너 크리에이터 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.partner,
-      rising: formFields['라이징 협찬 제안 금액'] || DEFAULT_UNIT_PRICES.rising,
+      icon: formFields['아이콘 크리에이터 협찬 제안 금액'] || fallbackUnitPrices.icon,
+      partner: formFields['파트너 크리에이터 협찬 제안 금액'] || fallbackUnitPrices.partner,
+      rising: formFields['라이징 협찬 제안 금액'] || fallbackUnitPrices.rising,
     }
 
     // CHANGED: 신청 가능 인원 수식 필드에서 배정 인원 역산

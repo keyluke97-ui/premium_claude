@@ -331,7 +331,28 @@ export default function FunnelPage() {
           }
         : { enabled: false }
 
-      await submitApplication({ budget, selectedPlan, formData, crew, planTier, couponEvent })
+      const submitResult = await submitApplication({ budget, selectedPlan, formData, crew, planTier, couponEvent })
+
+      // CHANGED: 완료 화면 금액을 **서버가 저장한 값**으로 맞춘다 (가을 할인 3단 가격).
+      //   가격 구분은 submit.js 가 사업자번호로 다시 판정하므로, 브라우저 판정이 어긋났어도
+      //   여기서 청구액과 화면이 같아진다. 단계 흐름·state 구조는 그대로이고,
+      //   기존 selectedPlan 의 금액 필드만 갱신한다.
+      if (submitResult?.pricing) {
+        const p = submitResult.pricing
+        setSelectedPlan((prev) =>
+          prev
+            ? {
+                ...prev,
+                price: p.subtotal,
+                priceWithVat: p.totalWithVat,
+                originalPrice: p.basePriceTotal,
+                isDiscounted: p.isDiscounted,
+                priceTier: p.priceTier,
+              }
+            : prev
+        )
+      }
+
       setRetryCount(0)
       goTo(6)
     } catch (error) {
