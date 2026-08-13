@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClock, Mail, X, Ticket } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { formatDiscount } from '../../utils/coupons'
+import { calcCrewPriceWithVat } from '../../data/packages'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
 const DASHBOARD_LOGIN_PATH = '/dashboard/login'
@@ -84,16 +85,13 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
       ? `${window.location.origin}${DASHBOARD_LOGIN_PATH}`
       : DASHBOARD_LOGIN_PATH
 
-  // 가격 계산 (plan에 priceWithVat이 없을 수 있음)
-  const ICON_PRICE = 300000
-  const PARTNER_PRICE = 100000
-  const RISING_PRICE = 50000
-
+  // 가격 계산 (plan에 priceWithVat이 없을 수 있음 — '직접 선택할게요'가 여기 해당)
+  // CHANGED: 단가 상수 복사본을 제거하고 packages.js의 PRICING 단일 출처를 쓴다.
+  // 복사본은 2026-04-07 정가 상향(파트너 100k→150k, 라이징 50k→100k) 때 갱신되지 않아
+  // 직접 구성 신청자에게 실제 청구액의 절반이 안내됐다. 단가는 반드시 한 곳에서만 읽는다.
   const computedPrice = (() => {
     if (plan?.priceWithVat) return plan.priceWithVat
-    const c = crew || plan?.crew || { icon: 0, partner: 0, rising: 0 }
-    const base = (c.icon || 0) * ICON_PRICE + (c.partner || 0) * PARTNER_PRICE + (c.rising || 0) * RISING_PRICE
-    return base > 0 ? Math.round(base * 1.1) : 0
+    return calcCrewPriceWithVat(crew || plan?.crew || { icon: 0, partner: 0, rising: 0 })
   })()
 
   const handleCopy = () => {
@@ -190,7 +188,7 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
               <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
                 <div className="flex items-center gap-2">
-                  {/* 재신청 할인 시 정가 취소선 → 할인가 */}
+                  {/* CHANGED: 가을 할인(신규·재신청) 시 기본가 취소선 → 할인가 */}
                   {plan?.isDiscounted && plan?.originalPrice > 0 && (
                     <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.35)' }}>
                       {formatPrice(Math.round(plan.originalPrice * 1.1))}
@@ -207,7 +205,7 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
                     className="inline-block px-1.5 py-0.5 rounded text-xs font-bold"
                     style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}
                   >
-                    🎉 재신청 할인 적용
+                    🍂 가을 할인 적용
                   </span>
                 </div>
               )}

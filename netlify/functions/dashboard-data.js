@@ -141,18 +141,23 @@ export default async (request) => {
       // CHANGED: 입금 확인 여부 및 실입금 필요 금액 추가
       paymentConfirmed: formFields['입금내역 확인'] === true,
       requiredPaymentAmount: formFields['실입금 필요 금액'] || null,
+      // unitPrice 폴백은 **레거시 레코드 전용**이다.
+      //   - 단가 필드가 아예 없던 시절(~2026-03)의 레코드에만 쓰이므로, 값도 그 시절 정가를 유지한다.
+      //     현재 정가(파트너 150000 / 라이징 100000)로 올리면 옛 레코드에 실제보다 비싼 단가가 표시된다.
+      //   - 미선택 등급은 submit.js가 0을 저장한다. `||`면 그 0이 폴백으로 바뀌므로 `??`로 0을 보존한다.
+      //     (StatusCard는 requested > 0 인 등급만 렌더해 화면 영향은 없지만, 값의 의미를 흐리지 않는다.)
       crew: {
         icon: {
           requested: formFields['⭐️ 모집 희망 인원'] || 0,
-          unitPrice: formFields['아이콘 크리에이터 협찬 제안 금액'] || 300000,
+          unitPrice: formFields['아이콘 크리에이터 협찬 제안 금액'] ?? 300000,
         },
         partner: {
           requested: formFields['✔️ 모집 인원'] || 0,
-          unitPrice: formFields['파트너 크리에이터 협찬 제안 금액'] || 100000,
+          unitPrice: formFields['파트너 크리에이터 협찬 제안 금액'] ?? 100000,
         },
         rising: {
           requested: formFields['🔥 모집 인원'] || 0,
-          unitPrice: formFields['라이징 협찬 제안 금액'] || 50000,
+          unitPrice: formFields['라이징 협찬 제안 금액'] ?? 50000,
         },
       },
       notes: formFields['비고'] || '',
