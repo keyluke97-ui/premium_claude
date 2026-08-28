@@ -112,7 +112,8 @@ export default function FunnelPage() {
       : selectedPlan?.crew || { icon: 0, partner: 0, rising: 0 }
 
   // 방문/쿠폰 기간 일수 파생. dates는 submit.js가 신청일 기준으로 환산해 저장(운영자가 매칭 후 보정 가능).
-  // (약관 제11조 "신청 후 2개월"과 정합)
+  // (약관 제11조는 2026-08-28 개정으로 숫자를 갖지 않는다 — "캠지기가 신청 시 설정한
+  //  방문 가능 기간 이내". 하한은 VISIT_PERIOD.minimumDays 하나가 정한다)
   const couponBufferDays = COUPON_PERIOD.contentCreationDays + COUPON_PERIOD.minimumBenefitDays
   const couponPeriodDays = visitPeriodDays + couponBufferDays + couponExtraDays
 

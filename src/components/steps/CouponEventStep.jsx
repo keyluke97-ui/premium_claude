@@ -371,7 +371,8 @@ export default function CouponEventStep({
             <div className="mb-6">
               <SectionLabel icon={Calendar} text="크리에이터 방문 가능 기간" />
               <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
-                프리미엄 협찬 정책(신청 후 2개월 이내 방문)에 맞춘 기본값이에요
+                크리에이터 일정이 보통 한 달 앞까지 차 있어서, 최소 {VISIT_PERIOD.minimumDays}일은 두셔야
+                취소 없이 안정적으로 모집돼요
               </p>
               <PeriodDisplayCard totalDays={visitPeriodDays} />
               {!showVisitAdjust ? (

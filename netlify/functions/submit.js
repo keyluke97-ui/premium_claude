@@ -18,6 +18,8 @@ import {
   isDiscountedTier,
   isPlanDiscountEligible,
 } from '../../src/constants/pricing.js'
+// 제작 개월수는 화면과 **같은 함수**로 파생시킨다 — 각자 계산하면 저장값과 고지값이 갈린다.
+import { deriveProductionMonths, DEFAULT_PRODUCTION_MONTHS } from '../../src/constants/config.js'
 
 export default async (req) => {
   // CORS preflight
@@ -112,10 +114,15 @@ export default async (req) => {
           '인당 팔로워 쿠폰': couponEvent.couponPerCreator || 0,
           '쿠폰 이벤트 약관 동의': '동의',
           '방문 가능 기간(일수)': couponEvent.visitPeriodDays || 0,
+          '기본 제작 개월수': deriveProductionMonths(couponEvent.visitPeriodDays),
           '쿠폰 유효 기간(일수)': couponEvent.couponPeriodDays || 0,
           ...couponDates,
         }
-      : { '쿠폰이벤트희망': false }
+      : {
+          '쿠폰이벤트희망': false,
+          // 비쿠폰 건은 `방문 가능 기간(일수)`를 수집하지 않아 파생할 입력이 없다 → 고정값.
+          '기본 제작 개월수': DEFAULT_PRODUCTION_MONTHS,
+        }
 
     const payload = {
       records: [

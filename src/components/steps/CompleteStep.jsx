@@ -3,6 +3,7 @@ import { Check, Copy, CreditCard, Building2, Clock, LayoutDashboard, CalendarClo
 import { useState, useEffect } from 'react'
 import { formatDiscount } from '../../utils/coupons'
 import { calcCrewPriceWithVat } from '../../data/packages'
+import { DEFAULT_PRODUCTION_MONTHS } from '../../constants/config'
 
 // 대시보드 로그인 경로 (동일 도메인 내)
 const DASHBOARD_LOGIN_PATH = '/dashboard/login'
@@ -292,7 +293,11 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
           <TimelineItem step="2" title="크리에이터 모집 & 매칭" detail="공고 후 크리에이터 신청 순" />
           <TimelineItem
             step="3"
-            title="신청 후 2개월 이내 방문"
+            title={
+              couponSummary?.visitPeriodDays
+                ? `신청 후 ${couponSummary.visitPeriodDays}일 이내 방문`
+                : `신청 후 ${DEFAULT_PRODUCTION_MONTHS}개월 이내 방문`
+            }
             detail="크리에이터가 직접 방문해 1박 체험"
             highlight
           />
