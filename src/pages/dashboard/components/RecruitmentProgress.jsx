@@ -18,7 +18,7 @@ function calculatePercent(assigned, requested) {
 }
 
 /** 단일 등급 진행률 행 */
-function GradeProgressRow({ emoji, label, assigned, requested }) {
+function GradeProgressRow({ emoji, label, assigned, requested, refunded = 0 }) {
   const percent = calculatePercent(assigned, requested)
   const isComplete = assigned >= requested && requested > 0
 
@@ -32,7 +32,7 @@ function GradeProgressRow({ emoji, label, assigned, requested }) {
           className="text-sm font-medium"
           style={{ color: isComplete ? BRAND_GREEN : '#FFFFFF' }}
         >
-          {assigned}/{requested}명
+          {assigned}/{requested}명{refunded > 0 && ` (환불 ${refunded}명)`}
           {isComplete && (
             <span className="ml-1 text-xs" style={{ color: BRAND_GREEN }}>완료</span>
           )}
@@ -123,7 +123,8 @@ export default function RecruitmentProgress({ recruitment, totalRequested, total
       <div className="space-y-4">
         {GRADE_CONFIG.map(({ key, emoji, label }) => {
           const gradeData = recruitment[key]
-          if (!gradeData || gradeData.requested <= 0) return null
+          // 전부 환불한 등급도 '환불 N명'으로 남겨 보여준다
+          if (!gradeData || (gradeData.requested <= 0 && !gradeData.refunded)) return null
           return (
             <GradeProgressRow
               key={key}
@@ -131,6 +132,7 @@ export default function RecruitmentProgress({ recruitment, totalRequested, total
               label={label}
               assigned={gradeData.assigned}
               requested={gradeData.requested}
+              refunded={gradeData.refunded || 0}
             />
           )
         })}

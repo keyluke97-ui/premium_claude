@@ -1,7 +1,7 @@
 // dashboard-modify.js - 미배정 슬롯의 등급 간 인원 변경 + 가격 재계산
 
 import { verifyToken, extractToken, buildCorsHeaders, checkRateLimit, rateLimitResponse } from './jwt-utils.js' // CHANGED: Item 8 - Rate Limiting 추가
-import { PRICE_TIER, unitPricesForTier } from '../../src/constants/pricing.js'
+import { PRICE_TIER, unitPricesForTier, crewPrice } from '../../src/constants/pricing.js'
 
 // CHANGED: S-2 - CORS 헤더를 buildCorsHeaders로 교체 (ALLOWED_ORIGIN 환경변수 지원)
 const CORS_HEADERS = buildCorsHeaders('POST, OPTIONS')
@@ -192,6 +192,12 @@ export default async (request) => {
         '아이콘 크리에이터 협찬 제안 금액': unitPrices.icon, // CHANGED: Item 6 - Airtable 기존 단가 유지
         '파트너 크리에이터 협찬 제안 금액': unitPrices.partner,
         '라이징 협찬 제안 금액': unitPrices.rising,
+        // CHANGED(2026-10-14): 할인 신청 건은 '할인전금액'(같은 구성의 기본가 총액)도 새 구성으로 다시 계산한다.
+        //   전에는 인원을 바꿔도 옛 구성 기준으로 남아 할인액이 틀어졌다(산과별: 700,000으로 고정).
+        //   기본가 신청(0)은 submit.js와 같은 규칙으로 0을 유지한다.
+        ...(Number(formFields['할인전금액']) > 0
+          ? { '할인전금액': crewPrice(newCrew, PRICE_TIER.BASE) }
+          : {}),
       },
     }
 

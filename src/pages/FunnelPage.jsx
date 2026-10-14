@@ -37,6 +37,7 @@ const INITIAL_FORM = {
   phone: '',
   email: '',
   businessNumber: '',
+  depositorName: '', // 입금하실 분 이름 — 비우면 대표자명으로 저장(submit.js)
   region: '',
   instagramId: '',
   siteTypes: [],

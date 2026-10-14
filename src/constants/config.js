@@ -93,3 +93,7 @@ export const COUPON_EVENT_DEFAULTS = {
   couponApplyDays: 'weekday_weekend_holiday',
   couponPerCreator: 20,
 }
+
+// 신청 시 동의한 약관 버전 — src/data/agreements.js 문구를 바꾸면 이 값도 바꾼다.
+//   정산·환불 분쟁 때 "어느 약관에 동의했는지"를 레코드에서 바로 확인하기 위한 값이다(Airtable '약관 버전').
+export const AGREEMENT_VERSION = '2026-08-28'

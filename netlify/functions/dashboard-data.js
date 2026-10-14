@@ -186,18 +186,32 @@ export default async (request) => {
       rising: formFields['라이징 크리에이터 신청 수'] || 0,
     }
 
+    // CHANGED(2026-10-14): 부분 환불은 모집 인원을 줄이지 않고 '⭐️/✔️/🔥 환불 인원'에 기록한다.
+    //   진행률의 목표는 환불한 자리를 뺀 인원이어야 한다 — 안 빼면 환불한 자리가 "모집 중"으로 보인다.
+    //   결제 내역(StatusCard)은 원래 모집 인원 그대로 둔다(실제로 결제한 구성이므로).
+    const refundedByGrade = {
+      icon: formFields['⭐️ 환불 인원'] || 0,
+      partner: formFields['✔️ 환불 인원'] || 0,
+      rising: formFields['🔥 환불 인원'] || 0,
+    }
+    const recruitTarget = (grade) =>
+      Math.max(0, applicationData.crew[grade].requested - refundedByGrade[grade])
+
     const recruitment = {
       icon: {
-        requested: applicationData.crew.icon.requested,
+        requested: recruitTarget('icon'),
         assigned: assignedByGrade.icon,
+        refunded: refundedByGrade.icon,
       },
       partner: {
-        requested: applicationData.crew.partner.requested,
+        requested: recruitTarget('partner'),
         assigned: assignedByGrade.partner,
+        refunded: refundedByGrade.partner,
       },
       rising: {
-        requested: applicationData.crew.rising.requested,
+        requested: recruitTarget('rising'),
         assigned: assignedByGrade.rising,
+        refunded: refundedByGrade.rising,
       },
     }
 

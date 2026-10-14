@@ -19,7 +19,7 @@ import {
   isPlanDiscountEligible,
 } from '../../src/constants/pricing.js'
 // 제작 개월수는 화면과 **같은 함수**로 파생시킨다 — 각자 계산하면 저장값과 고지값이 갈린다.
-import { deriveProductionMonths, DEFAULT_PRODUCTION_MONTHS } from '../../src/constants/config.js'
+import { deriveProductionMonths, DEFAULT_PRODUCTION_MONTHS, AGREEMENT_VERSION } from '../../src/constants/config.js'
 
 export default async (req) => {
   // CORS preflight
@@ -173,6 +173,15 @@ export default async (req) => {
             '동의합니다.': '동의',
             '프리미엄 협찬 관련 동의 사항': '동의',
             '캠지기인스타그램': formData.instagramId || '',
+
+            // CHANGED(2026-10-14): 정산 이력용 스냅샷 — 신청 순간의 값을 고정해 둔다.
+            //   '실입금 필요 금액'(수식)은 인원·단가를 고치면 따라 바뀌어서 "그때 얼마를 안내했는지"가 남지 않는다.
+            //   입금자명은 입금 대사용. 비우면 대표자명으로 입금한 것으로 본다.
+            '입금자명': (formData.depositorName || '').trim() || formData.representativeName || '',
+            '정가 총액': crewPrice(crew, PRICE_TIER.BASE),
+            '안내 입금액': withVat(crewPrice(crew, priceTier)),
+            '약관 버전': AGREEMENT_VERSION,
+            '동의 일시': new Date().toISOString(),
             '비고': formData.additionalRequests || '',
 
             // 팔로워 쿠폰 이벤트 (옵트인 시에만 키 추가)
