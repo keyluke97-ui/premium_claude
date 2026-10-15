@@ -6,6 +6,22 @@
 
 import { PRICE_TIER } from '../constants/pricing'
 
+/**
+ * 가을 할인 진행 여부 (서버 AUTUMN_SALE 스위치)
+ * CHANGED: 조회 실패는 false — 할인 안내를 숨길 뿐 청구엔 영향이 없다(가격은 submit.js 가 재판정).
+ *          반대로 실패를 true 로 두면 스위치를 내린 뒤에도 할인을 약속하게 된다.
+ */
+export async function fetchSaleStatus() {
+  try {
+    const res = await fetch('/api/sale-status')
+    if (!res.ok) return false
+    const data = await res.json()
+    return data.saleOn === true
+  } catch {
+    return false
+  }
+}
+
 export async function checkFirstTime(businessNumber) {
   const clean = (businessNumber || '').replace(/[^0-9]/g, '')
   if (!/^\d{10}$/.test(clean)) {

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp, Search, BadgePercent } from 'lucide-react'
 import PACKAGES, { PRICING, calcCrewPrice, calcCrewPriceWithVat, computePlanPrice } from '../../data/packages'
 import { PRICE_TIER, normalizeTier, unitPricesForTier, isDiscountedTier } from '../../constants/pricing'
-import { checkFirstTime } from '../../utils/firstTimeCheck'
+import { checkFirstTime, fetchSaleStatus } from '../../utils/firstTimeCheck'
 import CreatorGuideSheet from '../CreatorGuideSheet'
 
 function formatPrice(number) {
@@ -168,6 +168,28 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   const [priceTier, setPriceTier] = useState(PRICE_TIER.BASE)
   const [bizLoading, setBizLoading] = useState(false)
   const [bizError, setBizError] = useState('')
+  // CHANGED: 서버 AUTUMN_SALE 스위치 상태. 확인 전·조회 실패는 false(할인 안내 숨김) —
+  //   스위치를 내린 뒤에도 "가을 맞이 할인 진행 중"이 남던 버그 수정.
+  const [saleOn, setSaleOn] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchSaleStatus().then((on) => {
+      if (cancelled) return
+      setSaleOn(on)
+      if (!on) {
+        // 할인이 꺼졌는데 이전 조회의 할인 구분이 남아 있으면 카드에 할인가가 뜬다 → 기본가로
+        setPriceTier(PRICE_TIER.BASE)
+        sessionStorage.removeItem('priceTier')
+        // 이미 할인가로 선택된 플랜도 카탈로그 원본(기본가)으로 되돌린다
+        if (selected?.isDiscounted) {
+          const originalPlan = pkg?.plans?.find((p) => p.id === selected.id)
+          if (originalPlan) onSelect(originalPlan)
+        }
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
   // sessionStorage에서 복원 (뒤로가기 시)
   useEffect(() => {
@@ -270,7 +292,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
 
       {/* 할인 가능 plan이 선택됐는데 사업자번호 미조회 시 — ?plan= 딥링크 진입에서도 할인 우회 방지 */}
       <AnimatePresence>
-        {!bizChecked && selected?.discountEligible && !isDirectCustom && (
+        {saleOn && !bizChecked && selected?.discountEligible && !isDirectCustom && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -294,6 +316,8 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       {/* CHANGED: 숫자 앵커(30만→25만 칩)를 뺐다. 신규는 최대 20%, 재신청은 최대 13%라
           어떤 숫자를 앞에 박아도 한쪽은 조회 후 기대와 다른 금액을 보게 된다.
           앵커 대신 "넣으면 바로 확인된다"는 행동만 유도하고, 금액은 판정 후 보여준다. */}
+      {/* CHANGED: 할인이 꺼져 있으면 조회 박스 자체를 숨긴다. 사업자 번호는 InfoStep 에서 받으므로 수집엔 영향 없음 */}
+      {saleOn && (
       <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(1,223,130,0.04)', border: '1px solid rgba(1,223,130,0.15)' }}>
         <div className="flex items-center gap-2 mb-1">
           <BadgePercent size={15} style={{ color: '#01DF82' }} />
@@ -389,6 +413,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* 등급별 단가 요약 바 */}
       <TierSummaryBar priceTier={!isCustom && !isDirectCustom ? priceTier : PRICE_TIER.BASE} />
