@@ -57,15 +57,6 @@ const fields = [
     Icon: FileText,
     required: true,
   },
-  // 입금 대조용. 대표자명과 같으면 비워 둬도 된다 — 서버가 대표자명으로 채운다.
-  {
-    key: 'depositorName',
-    label: '입금하실 분 이름',
-    placeholder: '대표자명과 다를 때만 입력해주세요',
-    hint: '통장에 찍히는 입금자명이에요. 비워 두시면 대표자명으로 입금하시는 것으로 확인할게요.',
-    Icon: Users,
-    required: false,
-  },
 ]
 
 // CHANGED: 이지캠핑, 펜션 추가 + 가나다순 정렬
@@ -192,11 +183,6 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                   />
                 )
               })()}
-              {field.hint && !hasError && (
-                <p className="mt-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  {field.hint}
-                </p>
-              )}
               {hasError && (
                 <div className="flex items-center gap-1 mt-1.5 text-xs" style={{ color: '#FF383C' }}>
                   <AlertCircle size={12} />

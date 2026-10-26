@@ -181,6 +181,11 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
           <div className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
             예금주: <span className="text-white font-semibold">(주) 넥스트에디션</span>
           </div>
+          {/* CHANGED(2026-10-26): 입금자명 = 캠핑장 이름 (입금 대사 규칙 · 신청 접수 메일과 같은 안내) */}
+          <div className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+            입금자명: <span className="text-white font-semibold">{formData?.accommodationName || '캠핑장 이름'}</span>
+            <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}> (캠핑장 이름으로 입금해 주세요)</span>
+          </div>
           {computedPrice > 0 && (
             <div
               className="mt-1 p-3 rounded-lg"
@@ -464,6 +469,11 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
                     </div>
                     <div className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       예금주: <span className="text-white font-semibold">(주) 넥스트에디션</span>
+                    </div>
+                    {/* CHANGED(2026-10-26): 입금자명 = 캠핑장 이름 — 본문 입금 안내 카드와 같은 문구 */}
+                    <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      입금자명: <span className="text-white font-semibold">{formData?.accommodationName || '캠핑장 이름'}</span>
+                      {' '}(캠핑장 이름으로 입금해 주세요)
                     </div>
                     {computedPrice > 0 && (
                       <div
