@@ -165,11 +165,12 @@ export function getPremiumBudgets() {
 }
 
 /** 전액 환불 요청 (환불 사유 + 계좌 정보 + 통장사본 이미지) */
-export async function requestRefund({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }) {
+// CHANGED: recordId = 지금 보고 있는 신청 건. 서버가 소유 여부를 확인한 뒤 그 건에 기록한다
+export async function requestRefund({ reason, bankName, accountNumber, accountHolder, bankImageBase64, recordId }) {
   const response = await fetch(`${API_BASE}/api/dashboard/refund`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder, bankImageBase64 }),
+    body: JSON.stringify({ reason, bankName, accountNumber, accountHolder, bankImageBase64, rid: recordId || undefined }),
   })
   return handleResponse(response)
 }

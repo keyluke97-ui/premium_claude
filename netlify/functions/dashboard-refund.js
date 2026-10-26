@@ -75,13 +75,29 @@ export default async (request) => {
     return jsonResponse({ error: verification.error }, 401)
   }
 
-  // CHANGED: JWT 구조 변경 대응 — premiumRecordId 우선, 하위 호환으로 recordId도 지원
-  const { premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
-  const recordId = premiumRecordId || legacyRecordId
+  // CHANGED: JWT 구조 변경 대응 — premiumRecordIds 배열 + 하위 호환 (premiumRecordId, recordId)
+  const { premiumRecordIds, premiumRecordId, recordId: legacyRecordId, accommodationName } = verification.payload
+  const defaultRecordId = premiumRecordId || legacyRecordId
 
   try {
     // CHANGED: 환불 요청 시 계좌 정보 + 통장사본 base64 수신
-    const { reason, bankName, accountNumber, accountHolder, bankImageBase64 } = await request.json()
+    // CHANGED: rid = 대시보드에서 보고 있는 신청 건. 없으면 첫 신청 건(구 화면 호환)
+    const { reason, bankName, accountNumber, accountHolder, bankImageBase64, rid } = await request.json()
+
+    // CHANGED: 재신청으로 신청 건이 2개 이상인 캠지기가 두 번째 건의 환불을 요청해도
+    //   항상 첫 건(premiumRecordId)에 기록되던 문제. dashboard-data 와 같은 방식으로
+    //   rid 가 이 캠지기 소유(JWT 허용 목록)인지 확인한 뒤 그 건에 기록한다.
+    let recordId = defaultRecordId
+    if (rid) {
+      const allowedIds = premiumRecordIds || [defaultRecordId].filter(Boolean)
+      if (!allowedIds.includes(rid)) {
+        return jsonResponse({ error: '해당 신청 건에 대한 접근 권한이 없습니다.' }, 403)
+      }
+      recordId = rid
+    }
+    if (!recordId) {
+      return jsonResponse({ error: '프리미엄 대시보드 접근 권한이 없습니다.' }, 403)
+    }
 
     if (!reason || reason.trim().length === 0) {
       return jsonResponse({ error: '환불 사유를 입력해주세요.' }, 400)
