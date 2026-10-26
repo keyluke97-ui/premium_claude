@@ -451,6 +451,7 @@ function DashboardPage() {
             recruitment={dashboardData?.recruitment}
             totalAssigned={dashboardData?.totalAssigned}
             accommodationName={accommodationName}
+            recordId={activeRecordId}
             onClose={handleCloseRefundModal}
           />
         )}

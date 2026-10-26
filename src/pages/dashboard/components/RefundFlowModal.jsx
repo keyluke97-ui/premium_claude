@@ -167,7 +167,7 @@ function StepSelect({ onSelectFull, onSelectPartial, onClose }) {
 }
 
 // ─── Step 2a: 전액 환불 폼 ───────────────────────────────────────────────────
-function StepFullRefund({ onBack, onClose, onSuccess }) {
+function StepFullRefund({ recordId, onBack, onClose, onSuccess }) {
   const [reason, setReason] = useState('')
   const [bankName, setBankName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -220,6 +220,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
         accountNumber: accountNumber.trim(),
         accountHolder: accountHolder.trim(),
         bankImageBase64: imageBase64,
+        recordId,
       })
       if (onSuccess) onSuccess(response)
     } catch (submitError) {
@@ -232,7 +233,7 @@ function StepFullRefund({ onBack, onClose, onSuccess }) {
       setLoading(false)
       submitLockRef.current = false
     }
-  }, [canSubmit, reason, bankName, accountNumber, accountHolder, imageBase64, onSuccess])
+  }, [canSubmit, reason, bankName, accountNumber, accountHolder, imageBase64, recordId, onSuccess])
 
   return (
     <BottomSheet onClose={onClose}>
@@ -683,7 +684,8 @@ function StepSuccess({ result, onClose }) {
 }
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function RefundFlowModal({ recruitment, accommodationName, onClose }) {
+// CHANGED: recordId = 대시보드에서 선택한 신청 건 (재신청으로 2건 이상일 때 환불 대상 지정)
+export default function RefundFlowModal({ recruitment, accommodationName, recordId, onClose }) {
   const [step, setStep] = useState('select') // 'select' | 'full' | 'partial' | 'success'
   const [successResult, setSuccessResult] = useState(null)
 
@@ -705,6 +707,7 @@ export default function RefundFlowModal({ recruitment, accommodationName, onClos
       {step === 'full' && (
         <StepFullRefund
           key="full"
+          recordId={recordId}
           onBack={() => setStep('select')}
           onClose={onClose}
           onSuccess={handleSuccess}
