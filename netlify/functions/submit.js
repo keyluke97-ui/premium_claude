@@ -176,8 +176,9 @@ export default async (req) => {
 
             // CHANGED(2026-10-14): 정산 이력용 스냅샷 — 신청 순간의 값을 고정해 둔다.
             //   '실입금 필요 금액'(수식)은 인원·단가를 고치면 따라 바뀌어서 "그때 얼마를 안내했는지"가 남지 않는다.
-            //   입금자명은 입금 대사용. 비우면 대표자명으로 입금한 것으로 본다.
-            '입금자명': (formData.depositorName || '').trim() || formData.representativeName || '',
+            //   입금자명은 입금 대사용. CHANGED(2026-10-26): 운영 규칙이 "캠핑장 이름으로 입금"이라
+            //   신청 화면의 입력란을 없애고 캠핑장 이름을 그대로 저장한다(신청 접수 메일 안내와 같음).
+            '입금자명': formData.accommodationName || '',
             '정가 총액': crewPrice(crew, PRICE_TIER.BASE),
             '안내 입금액': withVat(crewPrice(crew, priceTier)),
             '약관 버전': AGREEMENT_VERSION,
