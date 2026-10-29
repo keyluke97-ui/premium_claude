@@ -19,18 +19,20 @@ export const PRICE_TIER = {
  * 가격 구분별 등급 단가 (VAT 별도 / 1객실 1인 기준)
  * - 기본가: 사업자번호 미판정 · 할인 제외 플랜(확산·입문·직접구성)
  * - 신규:   해당 사업자번호의 신청 이력이 없음
- * - 재신청: 신청 이력이 있음
+ * - 재신청: 신청 이력이 있음 (프렌들리 건은 이력에서 제외 — price-tier.js)
+ *
+ * CHANGED(10-29): 동계맞이 단가. 신규 할인 상향, 재신청 할인 폐지(재신청 = 기본가).
+ *   이미 모집·매칭된 캠페인은 Airtable에 저장된 금액 그대로이고, 새 신청부터 적용된다.
  */
 export const TIER_UNIT_PRICES = {
   [PRICE_TIER.BASE]: { icon: 300000, partner: 150000, rising: 100000 },
-  [PRICE_TIER.NEW]: { icon: 250000, partner: 120000, rising: 80000 },
-  [PRICE_TIER.RETURNING]: { icon: 270000, partner: 130000, rising: 90000 },
+  [PRICE_TIER.NEW]: { icon: 270000, partner: 130000, rising: 90000 },
+  [PRICE_TIER.RETURNING]: { icon: 300000, partner: 150000, rising: 100000 },
 }
 
 /**
- * 가을 맞이 할인 스위치.
+ * 동계맞이 할인 스위치 (환경변수 이름은 AUTUMN_SALE 그대로 — 운영 env 변경 없이 쓰려고 유지).
  * 'off' 로 두면 신규·재신청 판정을 무시하고 **전원 기본가**로 돌아간다.
- * (재신청 할인도 함께 사라진다 — 이벤트를 통째로 내리는 스위치다.)
  * 값이 없으면 켜짐이 기본값이라, 배포만으로 이벤트가 시작된다.
  */
 export function isSaleOn(flag) {
@@ -62,9 +64,15 @@ export function withVat(amount) {
   return Math.round(amount * 1.1)
 }
 
-/** 기본가 대비 할인 적용 여부 — Airtable `이벤트 할인` 체크박스에 그대로 들어간다 */
+/**
+ * 기본가 대비 할인 적용 여부 — Airtable `이벤트 할인` 체크박스에 그대로 들어간다
+ * CHANGED: 구분 이름이 아니라 단가로 판정한다. 재신청 단가가 기본가와 같아진 뒤로
+ *   "재신청 ≠ 기본가"로 보면 할인 없이 '이벤트 할인'이 체크돼 수수료가 1만으로 잘못 잡힌다.
+ */
 export function isDiscountedTier(tier) {
-  return normalizeTier(tier) !== PRICE_TIER.BASE
+  const p = unitPricesForTier(tier)
+  const base = TIER_UNIT_PRICES[PRICE_TIER.BASE]
+  return p.icon < base.icon || p.partner < base.partner || p.rising < base.rising
 }
 
 /**
