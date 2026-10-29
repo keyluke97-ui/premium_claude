@@ -190,7 +190,7 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                 </div>
               )}
               {/* CHANGED: 신규도 할인 대상이므로 두 구분 모두 안내한다 */}
-              {field.key === 'businessNumber' && bannerTier && bannerTier !== PRICE_TIER.BASE && (
+              {field.key === 'businessNumber' && bannerTier === PRICE_TIER.NEW && (
                 <div
                   className="mt-2 px-3 py-2 rounded-lg flex items-start gap-2 text-xs"
                   style={{
@@ -200,9 +200,7 @@ export default function InfoStep({ data, onChange, errors, plan, onPlanUpdate })
                 >
                   <Sparkles size={14} style={{ color: BRAND_GREEN, flexShrink: 0, marginTop: 2 }} />
                   <span style={{ color: BRAND_GREEN, fontWeight: 600, lineHeight: 1.5 }}>
-                    {bannerTier === PRICE_TIER.NEW
-                      ? '🍂 가을 할인 적용! 첫 신청 캠핑장 할인가가 자동 반영됐어요.'
-                      : '🍂 가을 할인 적용! 다시 찾아주셔서 감사해요 — 할인가가 자동 반영됐어요.'}
+                    ❄️ 동계맞이 할인 적용! 첫 신청 캠핑장 할인가가 자동 반영됐어요
                   </span>
                 </div>
               )}

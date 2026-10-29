@@ -1,4 +1,4 @@
-// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar + 가을 할인 가격 구분)
+// PackageStep.jsx - 플랜 선택 단계 (등급별 단가 breakdown + TierSummaryBar + 동계맞이 할인 가격 구분)
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, CheckCircle, Minus, Plus, Settings2, HelpCircle, Zap, Star, TrendingUp, Search, BadgePercent } from 'lucide-react'
@@ -161,7 +161,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   const [isCustom, setIsCustom] = useState(selected?.id === 'custom')
   const [showGuide, setShowGuide] = useState(false)
 
-  // 가을 할인 가격 구분 관련 상태
+  // 동계맞이 할인 가격 구분 관련 상태
   // CHANGED: isReturning(boolean) → priceTier 3단. 미조회 기본값은 **기본가**(가장 비싼 구분)다.
   const [bizNumber, setBizNumber] = useState('')
   const [bizChecked, setBizChecked] = useState(false)
@@ -169,7 +169,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
   const [bizLoading, setBizLoading] = useState(false)
   const [bizError, setBizError] = useState('')
   // CHANGED: 서버 AUTUMN_SALE 스위치 상태. 확인 전·조회 실패는 false(할인 안내 숨김) —
-  //   스위치를 내린 뒤에도 "가을 맞이 할인 진행 중"이 남던 버그 수정.
+  //   스위치를 내린 뒤에도 "할인 진행 중"이 남던 버그 수정.
   const [saleOn, setSaleOn] = useState(false)
 
   useEffect(() => {
@@ -305,8 +305,8 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
           >
             <BadgePercent size={16} style={{ color: '#FFA800', flexShrink: 0, marginTop: 1 }} />
             <div className="text-xs" style={{ color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
-              선택한 플랜이 <strong style={{ color: '#FFA800' }}>가을 할인 대상</strong>이에요.
-              아래에서 사업자 번호를 조회하면 자동으로 할인가가 반영됩니다.
+              선택한 플랜이 <strong style={{ color: '#FFA800' }}>동계맞이 할인 대상</strong>이에요.
+              첫 신청 캠핑장이라면 아래에서 사업자 번호를 조회할 때 할인가가 자동 반영돼요.
             </div>
           </motion.div>
         )}
@@ -321,7 +321,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
       <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: 'rgba(1,223,130,0.04)', border: '1px solid rgba(1,223,130,0.15)' }}>
         <div className="flex items-center gap-2 mb-1">
           <BadgePercent size={15} style={{ color: '#01DF82' }} />
-          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>🍂 가을 맞이 할인 진행 중</span>
+          <span className="text-sm font-bold" style={{ color: '#01DF82' }}>❄️ 동계맞이 할인 진행 중</span>
         </div>
         <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
           사업자 번호를 넣으면 우리 캠핑장 할인가가 바로 확인돼요
@@ -382,7 +382,8 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
           <p className="text-xs mt-1.5" style={{ color: '#FF383C' }}>{bizError}</p>
         )}
         <AnimatePresence>
-          {bizChecked && (
+          {/* CHANGED(10-29): 재신청 할인 폐지 — 재신청은 안내 박스 없이 기본가 카드만 보여준다 */}
+          {bizChecked && priceTier !== PRICE_TIER.RETURNING && (
             <motion.div
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
@@ -394,17 +395,10 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                 color: isDiscountedTier(priceTier) ? '#01DF82' : 'rgba(255,255,255,0.6)',
               }}
             >
-              {/* CHANGED: 신규·재신청 모두 할인 대상. 재신청 문구에는 "최대"를 쓰지 않는다
-                  (재신청 할인폭이 신규보다 작아 과장이 된다). */}
               {priceTier === PRICE_TIER.NEW ? (
                 <>
                   <BadgePercent size={14} />
-                  🍂 가을 할인 적용! 첫 신청 캠핑장 할인가로 계산됐어요.
-                </>
-              ) : priceTier === PRICE_TIER.RETURNING ? (
-                <>
-                  <BadgePercent size={14} />
-                  🍂 가을 할인 적용! 다시 찾아주셔서 감사해요 — 할인가로 계산됐어요.
+                  ❄️ 동계맞이 할인 적용! 첫 신청 캠핑장 할인가로 계산됐어요
                 </>
               ) : (
                 '이 플랜은 할인 대상이 아니라 기본가로 진행돼요.'
@@ -499,7 +493,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                     </span>
                     {plan.recommended && (
                       <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
-                        추천
+                        {typeof plan.recommended === 'string' ? plan.recommended : '추천'}
                       </span>
                     )}
                   </div>
@@ -531,7 +525,7 @@ export default function PackageStep({ budget, selected, onSelect, customCrew, on
                   return (
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}>🍂 가을 할인</span>
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}>❄️ 동계맞이 할인</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm line-through" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatPrice(plan.price)}</span>

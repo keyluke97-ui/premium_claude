@@ -47,6 +47,8 @@ export function isValidBusinessNumber(value) {
  * - 이벤트가 꺼져 있으면(AUTUMN_SALE=off) 기본가
  * - 사업자번호가 형식에 안 맞으면 기본가
  * - 최근 10분 밖의 신청 이력이 있으면 재신청, 없으면 신규
+ *   (체크박스 '프렌들리' 건 = 캠핏이 비용 부담한 신청은 이력에서 제외. 캠핑장 속성인
+ *    '프렌들리 캠핑장(내부 확인용)'과 다르다 — 이쪽은 신청 건 단위다.)
  * - 조회 실패는 PriceTierLookupError 로 던진다 (기본가로 삼키지 않는다)
  */
 export async function resolvePriceTier({ apiKey, baseId, tableId, businessNumber, now = Date.now() }) {
@@ -56,7 +58,7 @@ export async function resolvePriceTier({ apiKey, baseId, tableId, businessNumber
   const clean = normalizeBusinessNumber(businessNumber)
   const fieldName = TABLE_CONFIG.premium.businessNumberField
   const filterFormula = encodeURIComponent(
-    `SUBSTITUTE({${fieldName}}, '-', '')='${sanitizeForFormula(clean)}'`
+    `AND(SUBSTITUTE({${fieldName}}, '-', '')='${sanitizeForFormula(clean)}', NOT({프렌들리}))`
   )
   // maxRecords=5: 한 건만 받으면 그 한 건이 방금 만든 재시도 레코드일 때
   // 그보다 오래된 진짜 이력을 못 본다.

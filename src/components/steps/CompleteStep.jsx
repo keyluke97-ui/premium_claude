@@ -194,7 +194,7 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
               <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>입금 금액 (VAT 포함)</span>
                 <div className="flex items-center gap-2">
-                  {/* CHANGED: 가을 할인(신규·재신청) 시 기본가 취소선 → 할인가 */}
+                  {/* CHANGED: 동계맞이 할인(신규) 시 기본가 취소선 → 할인가 */}
                   {plan?.isDiscounted && plan?.originalPrice > 0 && (
                     <span className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.35)' }}>
                       {formatPrice(Math.round(plan.originalPrice * 1.1))}
@@ -211,7 +211,7 @@ export default function CompleteStep({ plan, formData, crew, couponSummary }) {
                     className="inline-block px-1.5 py-0.5 rounded text-xs font-bold"
                     style={{ backgroundColor: 'rgba(1,223,130,0.15)', color: '#01DF82' }}
                   >
-                    🍂 가을 할인 적용
+                    ❄️ 동계맞이 할인 적용
                   </span>
                 </div>
               )}

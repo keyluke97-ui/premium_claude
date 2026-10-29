@@ -90,6 +90,7 @@ const PACKAGES = {
         id: 'best-50', // CHANGED: signature-50 → best-50 (베스트 플랜 리네이밍)
         name: '베스트 플랜',
         badge: '베스트',
+        recommended: '가장 많이 찾는', // CHANGED(10-29): 판매 1위 — 추천 뱃지 자리에 표시
         composition: '아이콘 1 + 라이징 2',
         total: '총 3명',
         crew: { icon: 1, partner: 0, rising: 2 },
@@ -190,7 +191,6 @@ const PACKAGES = {
         id: 'starter-15',
         name: '스타터 플랜',
         badge: '스타터',
-        recommended: true,
         composition: '파트너 1 + 라이징 1',
         total: '총 2명',
         crew: { icon: 0, partner: 1, rising: 1 },
