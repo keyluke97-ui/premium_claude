@@ -87,6 +87,21 @@ const PACKAGES = {
     color: '#1975FF',
     plans: [
       {
+        id: 'rich-50',
+        name: '알찬 프로 플랜',
+        badge: '알찬',
+        recommended: '캠핏 추천', // CHANGED(11-24): 파트너 포함 플랜으로 고루 신청되도록 1순위 + 뱃지
+        composition: '파트너 2 + 라이징 2',
+        total: '총 4명',
+        crew: { icon: 0, partner: 2, rising: 2 },
+        price: 500000,
+        priceWithVat: 550000,
+        effect: '고퀄 리뷰와 다양한 후기의 균형',
+        Icon: Star,
+        accent: '#01DF82',
+        bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
+      },
+      {
         id: 'best-50', // CHANGED: signature-50 → best-50 (베스트 플랜 리네이밍)
         name: '베스트 플랜',
         badge: '베스트',
@@ -98,20 +113,6 @@ const PACKAGES = {
         priceWithVat: 550000,
         effect: '가장 인기 있는 구성, 노출+후기 동시 확보',
         Icon: Zap,
-        accent: '#01DF82',
-        bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
-      },
-      {
-        id: 'rich-50',
-        name: '알찬 프로 플랜',
-        badge: '알찬',
-        composition: '파트너 2 + 라이징 2',
-        total: '총 4명',
-        crew: { icon: 0, partner: 2, rising: 2 },
-        price: 500000,
-        priceWithVat: 550000,
-        effect: '고퀄 리뷰와 다양한 후기의 균형',
-        Icon: Star,
         accent: '#01DF82',
         bgGradient: 'linear-gradient(135deg, #0D2818 0%, #1A1A2E 100%)',
       },
